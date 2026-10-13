@@ -720,3 +720,44 @@ export interface TileAdvice {
   project: { rooms: number; current: TileOption; best: TileOption | null } | null
   summary: string | null
 }
+
+// --- Scenarios (PRD 4.17) --------------------------------------------------------------------------
+export type ScenarioBadge = 'lowest_waste' | 'lowest_cost' | 'fewest_boxes' | 'within_budget' | 'over_budget'
+
+export interface ScenarioResult {
+  id: string // "current" for the project as it is
+  name: string
+  notes: string | null
+  every_room: boolean
+  ready: boolean
+  blockers: string[]
+  tiles: { tile: TileRef; rooms: number; boxes: number; linear_mm: string | null }[]
+  boxes: number
+  tiles_bought: number
+  usable_area_mm2: string
+  bought_area_mm2: string
+  extra_area_mm2: string
+  extra_pct: string
+  cut_waste_pct: string
+  cost: string | null
+  fully_priced: boolean
+  budget_remaining: string | null
+  rooms: { room_id: string; name: string; tile: TileRef; layout: Layout; boxes: number; extra_pct: string; cost: string | null }[]
+  badges: ScenarioBadge[]
+}
+
+export interface Comparison {
+  results: ScenarioResult[]
+  best: { scenario_id: string; reasons: string[] } | null
+  suggestions: { key: string; name: string; reason: string; tile: TileRef; layout: Layout | null }[]
+}
+
+export interface ScenarioInput {
+  name: string
+  notes?: string | null
+  tile_id: string | null
+  layout: Layout | null
+  breakage_pct: string | null
+  price: Price | null
+  every_room: boolean
+}

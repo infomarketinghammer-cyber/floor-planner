@@ -332,3 +332,17 @@ Deleting a project deletes its outcomes and feedback.
 - **Best tile size** (`GET .../tile-advice`): each room recounted with the other suitable tiles in
   the library (same unit system, slip-resistant stays slip-resistant), plus one tile for the whole
   project, with a plain-language waste tip.
+
+## Comparison and recommendations (PRD 4.17)
+
+- **Options (scenarios)** are saved on the project: a default tile, layout, breakage and price,
+  optionally in every room, plus per-room tiles. "Save current setup" snapshots the project as it
+  is. Each option is the project's own rooms recalculated by the same engine (walls, extras, cost
+  lines, tax), so options compare like for like.
+- **Side by side**: tiles, boxes, tiles bought, extra area, cut waste, total cost and budget, plus
+  a room-by-room view. Badges mark the lowest cost, least waste, fewest boxes and budget fit.
+- **Best option** (`backend/app/services/scenarios.py`): with complete prices, the cheapest within
+  budget (or the closest to it); otherwise the least waste. Ties go to the current setup. The
+  reasons are written out in plain language.
+- **Suggested option**: the lowest-waste tile for the project, added with one click.
+- "Use this" applies an option to the project (undoable).

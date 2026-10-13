@@ -6,6 +6,8 @@ import type {
   SkirtingSettings,
   Suggestion,
   RoomLayout,
+  Comparison,
+  ScenarioInput,
   TileAdvice,
   SundriesSettings,
   AdminAccuracy,
@@ -282,6 +284,19 @@ export const api = {
       requestFile(`/projects/${projectId}/exports/${kind}?area_unit=${areaUnit}`),
     emailShoppingList: (projectId: string, data: { to: string[]; message?: string; attach_pdf: boolean }) =>
       request<{ sent_to: string[] }>(`/projects/${projectId}/exports/shopping-list/email`, json('POST', data)),
+  },
+  scenarios: {
+    compare: (projectId: string) => request<Comparison>(`/projects/${projectId}/scenarios`),
+    add: (projectId: string, data: ScenarioInput) =>
+      request<Comparison>(`/projects/${projectId}/scenarios`, json('POST', data)),
+    saveCurrent: (projectId: string, name: string) =>
+      request<Comparison>(`/projects/${projectId}/scenarios/from-current`, json('POST', { name })),
+    rename: (projectId: string, id: string, name: string) =>
+      request<Comparison>(`/projects/${projectId}/scenarios/${id}`, json('PATCH', { name })),
+    remove: (projectId: string, id: string) => request<void>(`/projects/${projectId}/scenarios/${id}`, json('DELETE')),
+    /** Make an option the project's setup. Undoable. */
+    apply: (projectId: string, id: string, version: number) =>
+      request<RoomsState>(`/projects/${projectId}/scenarios/${id}/apply?version=${version}`, json('POST')),
   },
   feedback: {
     list: (projectId: string) => request<Feedback[]>(`/projects/${projectId}/feedback`),

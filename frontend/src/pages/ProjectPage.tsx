@@ -5,6 +5,7 @@ import type { Project } from '../api/types.ts'
 import { BlueprintsSection } from '../components/Blueprints.tsx'
 import { ExportSection } from '../components/exports/ExportSection.tsx'
 import { ExtractionSummary } from '../components/feedback/ExtractionSummary.tsx'
+import { ScenariosSection } from '../components/scenarios/ScenariosSection.tsx'
 import { StatusBadge } from '../components/projects.tsx'
 import { MaterialsSection } from '../components/materials/MaterialsSection.tsx'
 import { QuantitiesSection } from '../components/materials/QuantitiesSection.tsx'
@@ -92,6 +93,7 @@ export function ProjectPage() {
       {review.state && <ExtractionSummary projectId={projectId} version={review.state.version} />}
       <MaterialsSection projectId={projectId} review={review} />
       <QuantitiesSection projectId={projectId} review={review} />
+      {review.state?.estimate.ready && <ScenariosSection projectId={projectId} review={review} />}
       {review.state?.estimate.ready && (
         <ExportSection projectId={projectId} estimate={review.state.estimate} onExported={refreshProject} />
       )}
