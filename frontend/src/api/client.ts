@@ -56,7 +56,76 @@ function errorMessage(body: unknown, fallback: string): string {
   return fallback
 }
 
+// --- Guest mode (PRD 4.12): no account, projects in this browser ---------------------------
+let guestMode = false
+/** Set by AuthContext. While on, project calls go through the guest dispatcher (api/guest.ts). */
+export function setGuestMode(on: boolean) {
+  guestMode = on
+}
+export function isGuestMode(): boolean {
+  return guestMode
+}
+// Paths that always talk to the real API: sign-in, public pages.
+const ALWAYS_REMOTE = /^\/(auth|public)\//
+
+function viaGuest(path: string): boolean {
+  return guestMode && !ALWAYS_REMOTE.test(path)
+}
+
+/** Preferences live in the browser for guests. */
+async function guestPreferences(preferences: User['preferences']): Promise<User> {
+  const { guestId, localStore } = await import('../lib/localStore.ts')
+  await localStore.set('preferences', preferences)
+  return guestUser(await guestId(), preferences)
+}
+
+export function guestUser(id: string, preferences: User['preferences']): User {
+  return {
+    id,
+    name: 'Guest',
+    email: '',
+    company: null,
+    role: 'contractor',
+    is_active: true,
+    preferences,
+    created_at: new Date(0).toISOString(),
+  }
+}
+
+async function guestRequest<T>(path: string, init: RequestInit): Promise<T> {
+  const { guestCall, GuestError } = await import('./guest.ts')
+  const method = init.method ?? 'GET'
+  let body: unknown
+  let upload: { field: string; file: File; form: Record<string, string> } | undefined
+  if (typeof init.body === 'string') body = JSON.parse(init.body)
+  else if (init.body instanceof FormData) {
+    const form: Record<string, string> = {}
+    let file: File | null = null
+    let field = 'file'
+    for (const [key, value] of init.body.entries()) {
+      if (value instanceof File) {
+        file = value
+        field = key
+      } else form[key] = value
+    }
+    if (file) upload = { field, file, form }
+  }
+  try {
+    const result = await guestCall(method, path, body, upload)
+    return result.body as T
+  } catch (err) {
+    if (err instanceof GuestError) throw new ApiError(err.status, err.message)
+    throw err
+  }
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  if (viaGuest(path)) {
+    if (path === '/users/me/preferences') {
+      return (await guestPreferences(JSON.parse(String(init.body)))) as T
+    }
+    return guestRequest<T>(path, init)
+  }
   const response = await fetch(`/api${path}`, {
     ...init,
     credentials: 'same-origin',
@@ -71,6 +140,16 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 /** A file from the API, with the name the server gave it (Content-Disposition). */
 async function requestFile(path: string): Promise<{ blob: Blob; filename: string }> {
+  if (viaGuest(path)) {
+    const { guestCall, GuestError } = await import('./guest.ts')
+    try {
+      const result = await guestCall('GET', path)
+      return { blob: result.blob ?? new Blob(), filename: result.filename ?? 'export' }
+    } catch (err) {
+      if (err instanceof GuestError) throw new ApiError(err.status, err.message)
+      throw err
+    }
+  }
   const response = await fetch(`/api${path}`, { credentials: 'same-origin' })
   if (!response.ok) {
     const body = await response.json().catch(() => null)
@@ -90,6 +169,10 @@ function formData(fields: Record<string, string | File>): FormData {
 
 /** fetch() can't report upload progress, so large blueprint uploads use XHR. */
 function uploadWithProgress<T>(path: string, body: FormData, onProgress?: (fraction: number) => void): Promise<T> {
+  if (viaGuest(path)) {
+    onProgress?.(0.5) // the file is read and sent in one go
+    return guestRequest<T>(path, { method: 'POST', body }).finally(() => onProgress?.(1))
+  }
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
     xhr.open('POST', `/api${path}`)
@@ -141,6 +224,7 @@ export const api = {
     thumbnailUrl: (projectId: string, fileId: string, page: number) =>
       `/api/projects/${projectId}/files/${fileId}/pages/${page}/thumbnail`,
     downloadUrl: (projectId: string, fileId: string) => `/api/projects/${projectId}/files/${fileId}/download`,
+    download: (projectId: string, fileId: string) => requestFile(`/projects/${projectId}/files/${fileId}/download`),
     previewUrl: (projectId: string, fileId: string, page: number) =>
       `/api/projects/${projectId}/files/${fileId}/pages/${page}/preview`,
   },

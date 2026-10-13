@@ -4,13 +4,13 @@ import { homePathFor, useAuth } from '../auth/AuthContext.tsx'
 import { AuthCard, Button, ErrorText, Field } from '../components/ui.tsx'
 
 export function LoginPage() {
-  const { user, login } = useAuth()
+  const { user, login, isGuest, startGuest } = useAuth()
   const navigate = useNavigate()
   const from = (useLocation().state as { from?: string } | null)?.from
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  if (user) return <Navigate to={homePathFor(user)} replace />
+  if (user && !isGuest) return <Navigate to={homePathFor(user)} replace />
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -42,6 +42,18 @@ export function LoginPage() {
         <Link to="/register" className="font-medium text-brand-600 hover:underline">
           Create an account
         </Link>
+      </p>
+      <p className="mt-2 text-center text-sm text-slate-500">
+        <button
+          type="button"
+          onClick={async () => {
+            await startGuest()
+            navigate('/', { replace: true })
+          }}
+          className="text-slate-600 hover:underline"
+        >
+          Continue without an account
+        </button>
       </p>
     </AuthCard>
   )

@@ -1,3 +1,4 @@
+import { ApiImage } from '../../lib/apiImage.tsx'
 import { useState } from 'react'
 import { api } from '../../api/client.ts'
 import type { Estimate, ReviewRoom, RoomEstimate } from '../../api/types.ts'
@@ -92,7 +93,7 @@ export function ResultsOverlay({
 
       <div className="overflow-hidden rounded-lg bg-slate-100">
         <div className="relative mx-auto w-fit">
-          <img
+          <ApiImage
             src={api.files.previewUrl(projectId, current.fileId, current.page)}
             alt="Plan with results"
             className="block max-h-[70vh] w-auto max-w-full"

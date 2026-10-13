@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router'
 import { api, ApiError } from '../api/client.ts'
+import { useAuth } from '../auth/AuthContext.tsx'
 import type { Project } from '../api/types.ts'
 import { BlueprintsSection } from '../components/Blueprints.tsx'
 import { ExportSection } from '../components/exports/ExportSection.tsx'
@@ -23,6 +24,7 @@ export function ProjectPage() {
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
   const [areaUnit] = useAreaUnit()
+  const { isGuest } = useAuth()
 
   const refreshProject = useCallback(() => {
     api.projects
@@ -91,11 +93,11 @@ export function ProjectPage() {
 
       <BlueprintsSection projectId={projectId} onChange={handleBlueprintsChange} />
       <RoomsSection projectId={projectId} review={review} />
-      {review.state && <ExtractionSummary projectId={projectId} version={review.state.version} />}
+      {review.state && !isGuest && <ExtractionSummary projectId={projectId} version={review.state.version} />}
       <MaterialsSection projectId={projectId} review={review} />
       <QuantitiesSection projectId={projectId} review={review} />
       {review.state?.estimate.ready && <ScenariosSection projectId={projectId} review={review} />}
-      {review.state?.estimate.ready && <QuotesSection projectId={projectId} version={review.state.version} />}
+      {review.state?.estimate.ready && !isGuest && <QuotesSection projectId={projectId} version={review.state.version} />}
       {review.state?.estimate.ready && (
         <ExportSection projectId={projectId} estimate={review.state.estimate} onExported={refreshProject} />
       )}

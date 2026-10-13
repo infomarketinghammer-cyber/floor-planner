@@ -1,4 +1,6 @@
-import { Link } from 'react-router'
+import { useState } from 'react'
+import { Link, useNavigate } from 'react-router'
+import { useAuth } from '../auth/AuthContext.tsx'
 
 /** Public home page for visitors who aren't signed in. Signed-in users get the dashboard at "/". */
 
@@ -105,6 +107,8 @@ export function LandingPage() {
                 <Link to="/login" className="font-medium text-brand-700 hover:underline">
                   Sign in
                 </Link>
+                {' · '}
+                <TryWithoutAccount />
               </p>
             </div>
             <HeroIllustration />
@@ -258,5 +262,31 @@ function HeroIllustration() {
         </dl>
       </div>
     </div>
+  )
+}
+
+/** Start in guest mode: projects kept in this browser, no account (PRD 4.12). */
+function TryWithoutAccount() {
+  const { startGuest } = useAuth()
+  const navigate = useNavigate()
+  const [error, setError] = useState('')
+  return (
+    <>
+      <button
+        type="button"
+        onClick={async () => {
+          try {
+            await startGuest()
+            navigate('/', { replace: true })
+          } catch {
+            setError("This browser can't store projects (a private window?). Create an account instead.")
+          }
+        }}
+        className="font-medium text-brand-700 hover:underline"
+      >
+        Try it without an account
+      </button>
+      {error && <span className="block text-red-700">{error}</span>}
+    </>
   )
 }

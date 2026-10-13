@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { api } from '../../api/client.ts'
+import { useApiImage } from '../../lib/apiImage.tsx'
 import type { ReviewRoom } from '../../api/types.ts'
 
 const METHOD_LABELS = { pdf_text: 'PDF text', dxf_text: 'CAD drawing', vision: 'Read by AI' } as const
@@ -35,6 +36,8 @@ export function PlanViewer({
 }) {
   const [zoomed, setZoomed] = useState(true)
   const [failed, setFailed] = useState<string | null>(null)
+  // Works for projects kept in the browser too (guest mode).
+  const resolved = useApiImage(selected?.source ? api.files.previewUrl(projectId, selected.source.file_id, selected.source.page) : '')
   const source = selected.source
 
   if (!source || !source.bbox) {
@@ -51,7 +54,7 @@ export function PlanViewer({
     )
   }
 
-  const src = api.files.previewUrl(projectId, source.file_id, source.page)
+  const src = resolved ?? ''
   const onPage = rooms.filter(
     (r) => r.source?.bbox && r.source.file_id === source.file_id && r.source.page === source.page,
   )
@@ -74,7 +77,9 @@ export function PlanViewer({
         </button>
       }
     >
-      {failed === src ? (
+      {!src ? (
+        <p className="px-4 py-8 text-center text-sm text-slate-500">Loading the plan…</p>
+      ) : failed === src ? (
         <p className="px-4 py-8 text-center text-sm text-slate-500">The plan preview couldn't be loaded.</p>
       ) : (
         <div className="overflow-hidden bg-slate-100">

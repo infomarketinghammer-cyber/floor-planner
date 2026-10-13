@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useAuth } from '../../auth/AuthContext.tsx'
 import type { Estimate } from '../../api/types.ts'
 import { BudgetAlert, CostSection } from '../cost/CostSection.tsx'
 import { FeedbackPanel } from '../feedback/FeedbackPanel.tsx'
@@ -66,6 +67,7 @@ function Ready({
   area: (mm2: string | number) => string
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const { isGuest } = useAuth()
   const { rooms, cost, cost_settings: costSettings } = review.state!
   const money: MoneyFormat = costSettings
   const showCost = cost !== null && (cost.has_prices || cost.lines.length > 0)
@@ -145,7 +147,7 @@ function Ready({
         selectedId={selectedId}
         onSelect={setSelectedId}
       />
-      <FeedbackPanel projectId={projectId} estimate={estimate} selectedRoomId={selectedId} />
+      {!isGuest && <FeedbackPanel projectId={projectId} estimate={estimate} selectedRoomId={selectedId} />}
       <TileLayoutView
         projectId={projectId}
         estimate={estimate}

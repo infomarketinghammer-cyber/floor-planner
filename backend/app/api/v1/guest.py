@@ -25,6 +25,7 @@ from pydantic import BaseModel, Field
 
 from app.core.guest import GuestScope
 from app.db.mongo import get_db
+from app.services.project_summary import project_out as project_summary
 
 router = APIRouter(prefix="/guest", tags=["guest"])
 
@@ -83,6 +84,7 @@ class GuestCallOut(BaseModel):
     body: Any = None  # JSON responses
     body_b64: str | None = None  # files (PDF, Excel, images)
     project: dict | None
+    summary: dict | None  # the project's card for the browser's project list (ProjectOut)
     blueprints: list[dict]
     files_added: dict[str, str]
     files_deleted: list[str]
@@ -137,7 +139,7 @@ async def guest_call(body: GuestCallIn, request: Request) -> GuestCallOut:
 
     guest_oid = ObjectId(body.guest_id)
     catalog = await _catalog_tiles()
-    sandbox = AsyncMongoMockClient()["guest"]
+    sandbox = AsyncMongoMockClient(tz_aware=True)["guest"]  # like the real client
     if catalog:
         await sandbox.tiles.insert_many([dict(d) for d in catalog])
     own_tiles = [_load(t) | {"owner_id": guest_oid, "scope": "user"} for t in body.tiles]
@@ -191,6 +193,7 @@ async def guest_call(body: GuestCallIn, request: Request) -> GuestCallOut:
         body=response.json() if "json" in content_type and response.content else None,
         body_b64=None if "json" in content_type else base64.b64encode(response.content).decode(),
         project=_dump(project_out) if project_out else None,
+        summary=project_summary(project_out).model_dump(mode="json") if project_out else None,
         blueprints=_dump(blueprints_out),
         files_added={
             str(k): base64.b64encode(v).decode() for k, v in files.items() if k not in sent_files

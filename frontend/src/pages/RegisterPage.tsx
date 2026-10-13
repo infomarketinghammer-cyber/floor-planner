@@ -4,12 +4,12 @@ import { homePathFor, useAuth } from '../auth/AuthContext.tsx'
 import { AuthCard, Button, ErrorText, Field } from '../components/ui.tsx'
 
 export function RegisterPage() {
-  const { user, register } = useAuth()
+  const { user, register, isGuest } = useAuth()
   const navigate = useNavigate()
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  if (user) return <Navigate to={homePathFor(user)} replace />
+  if (user && !isGuest) return <Navigate to={homePathFor(user)} replace />
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()

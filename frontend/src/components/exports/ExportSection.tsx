@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { api } from '../../api/client.ts'
+import { useAuth } from '../../auth/AuthContext.tsx'
 import type { Estimate } from '../../api/types.ts'
 import { useAreaUnit } from '../../lib/format.ts'
 import { shoppingLines, shoppingText } from '../../lib/shopping.ts'
@@ -37,6 +38,7 @@ export function ExportSection({
   onExported: () => void
 }) {
   const [areaUnit] = useAreaUnit()
+  const { isGuest } = useAuth()
   const [downloading, setDownloading] = useState<FileKind | null>(null)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
@@ -115,7 +117,7 @@ export function ExportSection({
             </li>
           ))}
         </ul>
-        <EmailForm projectId={projectId} onSent={onExported} />
+        {!isGuest && <EmailForm projectId={projectId} onSent={onExported} />}
       </div>
     </section>
   )

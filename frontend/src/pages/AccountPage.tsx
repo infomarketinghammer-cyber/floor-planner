@@ -9,6 +9,65 @@ type SharedPlan = Awaited<ReturnType<typeof api.users.sharedPlans>>[number]
 
 /** Account and data management (PRD 4.14): shared evaluation copies, and deleting the account. */
 export function AccountPage() {
+  const { isGuest } = useAuth()
+  return isGuest ? <GuestAccount /> : <SignedInAccount />
+}
+
+/** Without an account: what's kept where, and how to delete it (PRD 4.12, 4.14). */
+function GuestAccount() {
+  const { leaveGuest } = useAuth()
+  const navigate = useNavigate()
+  const [confirmText, setConfirmText] = useState('')
+  return (
+    <div className="max-w-2xl space-y-8">
+      <div>
+        <h1 className="text-2xl font-semibold">Working without an account</h1>
+        <p className="text-sm text-slate-500">Your projects, plans and tiles are saved in this browser only.</p>
+      </div>
+      <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600">
+        <p>
+          Nothing is stored on our server: each change is sent for calculation and the result comes straight back to this
+          browser. Clearing your browser data, or using another browser or device, means you won't see these projects.
+        </p>
+        <p>
+          <Link to="/register" className="font-medium text-brand-700 hover:underline">
+            Create an account
+          </Link>{' '}
+          to keep them safe, use them on any device, read photos and scans with AI, and make quotes.
+        </p>
+      </section>
+      <section className="space-y-3 rounded-xl border border-red-200 bg-white p-5">
+        <h2 className="font-semibold text-red-800">Delete everything in this browser</h2>
+        <p className="text-sm text-slate-600">Removes every project, plan file and saved tile kept here. This can't be undone.</p>
+        <label className="block text-sm">
+          <span className="mb-1 block text-slate-600">
+            Type <strong>DELETE</strong> to confirm
+          </span>
+          <input
+            value={confirmText}
+            onChange={(e) => setConfirmText(e.target.value)}
+            className="w-full max-w-xs rounded-md border border-slate-300 px-3 py-2"
+          />
+        </label>
+        <button
+          type="button"
+          disabled={confirmText !== 'DELETE'}
+          onClick={async () => {
+            const { localStore } = await import('../lib/localStore.ts')
+            await localStore.clear()
+            leaveGuest()
+            navigate('/', { replace: true })
+          }}
+          className="rounded-md bg-red-700 px-4 py-2 text-sm font-medium text-white hover:bg-red-800 disabled:opacity-50"
+        >
+          Delete local data
+        </button>
+      </section>
+    </div>
+  )
+}
+
+function SignedInAccount() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [shared, setShared] = useState<SharedPlan[] | null>(null)

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type DragEvent } from 'react'
 import { Link } from 'react-router'
 import { api } from '../api/client.ts'
 import type { Blueprint, BlueprintPage } from '../api/types.ts'
+import { ApiImage } from '../lib/apiImage.tsx'
 import { usePrivacyInfo } from '../lib/privacy.ts'
 import { lengthUnitLabels } from '../lib/units.ts'
 import { ErrorText } from './ui.tsx'
@@ -301,9 +302,17 @@ function BlueprintCard({
           </p>
         </div>
         <div className="flex gap-4 text-sm">
-          <a href={api.files.downloadUrl(projectId, file.id)} className="text-slate-600 hover:underline">
+          <button
+            onClick={async () => {
+              const { blob, filename } = await api.files.download(projectId, file.id)
+              const url = URL.createObjectURL(blob)
+              Object.assign(document.createElement('a'), { href: url, download: filename }).click()
+              setTimeout(() => URL.revokeObjectURL(url), 1000)
+            }}
+            className="text-slate-600 hover:underline"
+          >
             Download
-          </a>
+          </button>
           <button onClick={onDelete} className="text-red-600 hover:underline">
             Delete
           </button>
@@ -351,7 +360,7 @@ function PageTile({
     <li className={`space-y-2 rounded-lg border p-3 ${page.included ? 'border-slate-200' : 'border-slate-200 opacity-60'}`}>
       <div className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded bg-slate-50">
         {page.has_thumbnail ? (
-          <img src={thumbnailUrl} alt={`Preview of page ${page.index + 1}`} loading="lazy" className="max-h-full max-w-full object-contain" />
+          <ApiImage src={thumbnailUrl} alt={`Preview of page ${page.index + 1}`} loading="lazy" className="max-h-full max-w-full object-contain" />
         ) : (
           <span className="text-xs text-slate-400">No preview</span>
         )}
