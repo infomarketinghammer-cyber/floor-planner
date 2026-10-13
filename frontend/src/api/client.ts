@@ -1,0 +1,242 @@
+import type {
+  AdminStats,
+  Blueprint,
+  CostSettings,
+  ExtractionResult,
+  LengthUnit,
+  Project,
+  Room,
+  RoomImportResult,
+  Layout,
+  MaterialField,
+  Price,
+  ProjectMaterial,
+  RoomsState,
+  RoomUpdate,
+  Tile,
+  TileInput,
+  TileRegion,
+  TileType,
+  User,
+} from './types.ts'
+import type { AreaUnit } from '../lib/format.ts'
+
+export class ApiError extends Error {
+  status: number
+
+  constructor(status: number, message: string) {
+    super(message)
+    this.status = status
+  }
+}
+
+function errorMessage(body: unknown, fallback: string): string {
+  const detail = (body as { detail?: unknown } | null)?.detail
+  if (typeof detail === 'string') return detail
+  // FastAPI validation errors: [{ loc, msg }, ...]
+  if (Array.isArray(detail) && detail[0]?.msg) return String(detail[0].msg)
+  return fallback
+}
+
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const response = await fetch(`/api${path}`, {
+    ...init,
+    credentials: 'same-origin',
+    // FormData bodies set their own multipart content-type.
+    headers: typeof init.body === 'string' ? { 'content-type': 'application/json', ...init.headers } : init.headers,
+  })
+  if (response.status === 204) return undefined as T
+  const body = await response.json().catch(() => null)
+  if (!response.ok) throw new ApiError(response.status, errorMessage(body, response.statusText))
+  return body as T
+}
+
+/** A file from the API, with the name the server gave it (Content-Disposition). */
+async function requestFile(path: string): Promise<{ blob: Blob; filename: string }> {
+  const response = await fetch(`/api${path}`, { credentials: 'same-origin' })
+  if (!response.ok) {
+    const body = await response.json().catch(() => null)
+    throw new ApiError(response.status, errorMessage(body, response.statusText))
+  }
+  const disposition = response.headers.get('content-disposition') ?? ''
+  const encoded = /filename\*=UTF-8''([^;]+)/i.exec(disposition)?.[1]
+  const plain = /filename="([^"]+)"/i.exec(disposition)?.[1]
+  return { blob: await response.blob(), filename: encoded ? decodeURIComponent(encoded) : (plain ?? 'export') }
+}
+
+function formData(fields: Record<string, string | File>): FormData {
+  const form = new FormData()
+  for (const [key, value] of Object.entries(fields)) form.append(key, value)
+  return form
+}
+
+/** fetch() can't report upload progress, so large blueprint uploads use XHR. */
+function uploadWithProgress<T>(path: string, body: FormData, onProgress?: (fraction: number) => void): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', `/api${path}`)
+    xhr.responseType = 'json'
+    xhr.upload.onprogress = (e) => e.lengthComputable && onProgress?.(e.loaded / e.total)
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) resolve(xhr.response as T)
+      else reject(new ApiError(xhr.status, errorMessage(xhr.response, xhr.statusText || 'Upload failed')))
+    }
+    xhr.onerror = () => reject(new ApiError(0, 'Network error. Check your connection and try again.'))
+    xhr.send(body)
+  })
+}
+
+const json = (method: string, data?: unknown): RequestInit => ({
+  method,
+  body: data === undefined ? undefined : JSON.stringify(data),
+})
+
+export const api = {
+  auth: {
+    me: () => request<{ user: User }>('/auth/me'),
+    login: (email: string, password: string) =>
+      request<{ user: User }>('/auth/login', json('POST', { email, password })),
+    register: (data: { name: string; email: string; password: string; company?: string }) =>
+      request<{ user: User }>('/auth/register', json('POST', data)),
+    logout: () => request<void>('/auth/logout', json('POST')),
+  },
+  projects: {
+    list: () => request<Project[]>('/projects'),
+    get: (id: string) => request<Project>(`/projects/${id}`),
+    create: (data: { name: string; notes?: string }) =>
+      request<Project>('/projects', json('POST', data)),
+    update: (id: string, data: { name?: string; notes?: string | null }) =>
+      request<Project>(`/projects/${id}`, json('PATCH', data)),
+    duplicate: (id: string) => request<Project>(`/projects/${id}/duplicate`, json('POST')),
+    remove: (id: string) => request<void>(`/projects/${id}`, json('DELETE')),
+  },
+  files: {
+    list: (projectId: string) => request<Blueprint[]>(`/projects/${projectId}/files`),
+    upload: (projectId: string, file: File, onProgress?: (fraction: number) => void) =>
+      uploadWithProgress<Blueprint>(`/projects/${projectId}/files`, formData({ file }), onProgress),
+    updatePage: (projectId: string, fileId: string, page: number, data: { floor?: string | null; included?: boolean }) =>
+      request<Blueprint>(`/projects/${projectId}/files/${fileId}/pages/${page}`, json('PATCH', data)),
+    remove: (projectId: string, fileId: string) =>
+      request<void>(`/projects/${projectId}/files/${fileId}`, json('DELETE')),
+    extract: (projectId: string, fileId: string) =>
+      request<ExtractionResult>(`/projects/${projectId}/files/${fileId}/extract`, json('POST')),
+    thumbnailUrl: (projectId: string, fileId: string, page: number) =>
+      `/api/projects/${projectId}/files/${fileId}/pages/${page}/thumbnail`,
+    downloadUrl: (projectId: string, fileId: string) => `/api/projects/${projectId}/files/${fileId}/download`,
+    previewUrl: (projectId: string, fileId: string, page: number) =>
+      `/api/projects/${projectId}/files/${fileId}/pages/${page}/preview`,
+  },
+  rooms: {
+    list: (projectId: string) => request<RoomsState>(`/projects/${projectId}/rooms`),
+    add: (
+      projectId: string,
+      data: {
+        name: string
+        floor?: string
+        length?: string
+        width?: string
+        unit: LengthUnit
+        area?: string
+        area_unit?: 'sqft' | 'sqm'
+      },
+    ) => request<RoomsState>(`/projects/${projectId}/rooms`, json('POST', data)),
+    update: (projectId: string, roomId: string, data: RoomUpdate) =>
+      request<RoomsState>(`/projects/${projectId}/rooms/${roomId}`, json('PATCH', data)),
+    confirm: (projectId: string, roomIds: string[], confirmed = true) =>
+      request<RoomsState>(`/projects/${projectId}/rooms/confirm`, json('POST', { room_ids: roomIds, confirmed })),
+    /** Undo/redo: put back a snapshot. `version` is the version the client last saw. */
+    restore: (
+      projectId: string,
+      version: number,
+      rooms: Room[],
+      planUnit: { unit: LengthUnit | null; confirmed: boolean },
+      defaultMaterial: ProjectMaterial,
+    ) =>
+      request<RoomsState>(
+        `/projects/${projectId}/rooms`,
+        json('PUT', {
+          version,
+          rooms,
+          plan_unit: planUnit.unit,
+          plan_unit_confirmed: planUnit.confirmed,
+          default_material: defaultMaterial,
+        }),
+      ),
+    setPlanUnit: (projectId: string, unit: LengthUnit, version: number) =>
+      request<RoomsState>(`/projects/${projectId}/rooms/plan-unit`, json('PUT', { unit, version })),
+    remove: (projectId: string, roomId: string) =>
+      request<RoomsState>(`/projects/${projectId}/rooms/${roomId}`, json('DELETE')),
+    import: (
+      projectId: string,
+      file: File,
+      options: { defaultUnit: LengthUnit; mode: 'append' | 'replace'; dryRun: boolean },
+    ) =>
+      request<RoomImportResult>(`/projects/${projectId}/rooms/import`, {
+        method: 'POST',
+        body: formData({
+          file,
+          default_unit: options.defaultUnit,
+          mode: options.mode,
+          dry_run: String(options.dryRun),
+        }),
+      }),
+  },
+  materials: {
+    setDefault: (
+      projectId: string,
+      data: { tile_id: string | null; layout: Layout; breakage_pct: string; price: Price | null },
+      version: number,
+    ) => request<RoomsState>(`/projects/${projectId}/materials/default`, json('PUT', { ...data, version })),
+    /** Bulk change for selected rooms: set fields, reset fields to the default, and/or skip. */
+    setRooms: (
+      projectId: string,
+      data: {
+        room_ids: string[]
+        set?: { tile_id?: string; layout?: Layout; breakage_pct?: string; price?: Price }
+        inherit?: MaterialField[]
+        skipped?: boolean
+      },
+      version: number,
+    ) => request<RoomsState>(`/projects/${projectId}/rooms/materials`, json('POST', { ...data, version })),
+    setExclusions: (
+      projectId: string,
+      roomId: string,
+      exclusions: { label: string; length: string; width: string; quantity: number; unit: LengthUnit }[],
+      version: number,
+    ) =>
+      request<RoomsState>(`/projects/${projectId}/rooms/${roomId}/exclusions`, json('PUT', { exclusions, version })),
+  },
+  cost: {
+    setSettings: (projectId: string, settings: CostSettings) =>
+      request<RoomsState>(`/projects/${projectId}/cost/settings`, json('PUT', settings)),
+  },
+  exports: {
+    options: (projectId: string) => request<{ email_enabled: boolean }>(`/projects/${projectId}/exports/options`),
+    file: (projectId: string, kind: 'report.pdf' | 'estimate.xlsx' | 'shopping-list.pdf', areaUnit: AreaUnit) =>
+      requestFile(`/projects/${projectId}/exports/${kind}?area_unit=${areaUnit}`),
+    emailShoppingList: (projectId: string, data: { to: string[]; message?: string; attach_pdf: boolean }) =>
+      request<{ sent_to: string[] }>(`/projects/${projectId}/exports/shopping-list/email`, json('POST', data)),
+  },
+  tiles: {
+    list: (filters: { scope?: 'all' | 'catalog' | 'mine'; q?: string; type?: TileType | ''; region?: TileRegion | '' } = {}) => {
+      const params = new URLSearchParams()
+      for (const [key, value] of Object.entries(filters)) if (value) params.set(key, value)
+      const qs = params.toString()
+      return request<Tile[]>(`/tiles${qs ? `?${qs}` : ''}`)
+    },
+    create: (data: TileInput, catalog = false) => request<Tile>(`/tiles${catalog ? '?catalog=true' : ''}`, json('POST', data)),
+    update: (id: string, data: TileInput) => request<Tile>(`/tiles/${id}`, json('PUT', data)),
+    copy: (id: string) => request<Tile>(`/tiles/${id}/copy`, json('POST')),
+    remove: (id: string) => request<void>(`/tiles/${id}`, json('DELETE')),
+  },
+  users: {
+    updatePreferences: (preferences: User['preferences']) =>
+      request<User>('/users/me/preferences', json('PUT', preferences)),
+  },
+  admin: {
+    stats: () => request<AdminStats>('/admin/stats'),
+    users: () => request<User[]>('/admin/users'),
+    updateUser: (id: string, data: Partial<Pick<User, 'role' | 'is_active'>>) =>
+      request<User>(`/admin/users/${id}`, json('PATCH', data)),
+  },
+}

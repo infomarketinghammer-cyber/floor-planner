@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+.venv/
+
+# Build output
+frontend/dist/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Uploads and local data
+/uploads/
+/backend/uploads/
+eval/plans/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
