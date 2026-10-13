@@ -28,8 +28,15 @@ def rect(length, width, x=0, y=0) -> Part:
 def test_herringbone_tiles_the_plane_without_gaps_or_overlaps(tl, tw):
     window = (1000.0, 1000.0, 4000.0, 3500.0)  # well inside the generated area
     polys = herringbone_polys([rect(6000, 5000)], float(tl), float(tw))
-    boxes = [(min(p[0] for p in q), min(p[1] for p in q), max(p[0] for p in q), max(p[1] for p in q)) for q in polys]
-    inside = [b for b in boxes if b[2] > window[0] and b[0] < window[2] and b[3] > window[1] and b[1] < window[3]]
+    boxes = [
+        (min(p[0] for p in q), min(p[1] for p in q), max(p[0] for p in q), max(p[1] for p in q))
+        for q in polys
+    ]
+    inside = [
+        b
+        for b in boxes
+        if b[2] > window[0] and b[0] < window[2] and b[3] > window[1] and b[1] < window[3]
+    ]
     # No two tiles overlap.
     for i, a in enumerate(inside):
         for b in inside[i + 1 :]:
@@ -38,7 +45,8 @@ def test_herringbone_tiles_the_plane_without_gaps_or_overlaps(tl, tw):
             assert not (w > 1e-6 and h > 1e-6), (a, b)
     # Together they cover the window exactly.
     covered = sum(
-        max(0, min(b[2], window[2]) - max(b[0], window[0])) * max(0, min(b[3], window[3]) - max(b[1], window[1]))
+        max(0, min(b[2], window[2]) - max(b[0], window[0]))
+        * max(0, min(b[3], window[3]) - max(b[1], window[1]))
         for b in inside
     )
     assert covered == pytest.approx((window[2] - window[0]) * (window[3] - window[1]))
@@ -55,7 +63,7 @@ def test_herringbone_count_covers_the_room():
 
 def test_brick_offsets_repeat():
     assert brick_offsets(D(600), D(50)) == [D(0), D(300)]
-    assert brick_offsets(D(600), D("33.333333")) [:3] == [D(0), D("199.999998"), D("399.999996")]
+    assert brick_offsets(D(600), D("33.333333"))[:3] == [D(0), D("199.999998"), D("399.999996")]
 
 
 def test_brick_half_offset_counts_and_reuse():
