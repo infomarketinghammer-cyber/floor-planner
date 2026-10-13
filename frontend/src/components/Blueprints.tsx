@@ -139,7 +139,7 @@ export function BlueprintsSection({ projectId, onChange }: { projectId: string; 
               ) : (
                 <div className="mt-2 h-1.5 overflow-hidden rounded bg-slate-100">
                   <div
-                    className={`h-full bg-brand-600 transition-all ${job.progress >= 1 ? 'animate-pulse' : ''}`}
+                    className={`h-full bg-brand-gradient transition-all ${job.progress >= 1 ? 'animate-pulse' : ''}`}
                     style={{ width: `${Math.max(5, job.progress * 100)}%` }}
                   />
                 </div>

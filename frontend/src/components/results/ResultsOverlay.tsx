@@ -80,7 +80,7 @@ export function ResultsOverlay({
                 aria-selected={p.key === current.key}
                 onClick={() => setChosen(p.key)}
                 className={`rounded-full px-3 py-1 ${
-                  p.key === current.key ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200'
+                  p.key === current.key ? 'bg-brand-600 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200'
                 }`}
               >
                 {p.floors.join(', ') || `Plan ${i + 1}`}

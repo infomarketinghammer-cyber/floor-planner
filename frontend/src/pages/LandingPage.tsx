@@ -49,9 +49,9 @@ export function LandingPage() {
     <div className="min-h-screen bg-white text-slate-900">
       <header className="border-b border-slate-100">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4">
-          <Link to="/" className="flex items-center gap-2 text-lg font-semibold">
+          <Link to="/" className="flex items-center gap-2 text-lg font-bold">
             <LogoMark />
-            Floor Planner
+            <span className="text-brand-gradient">Floor Planner</span>
           </Link>
           <nav className="flex items-center gap-2 text-sm sm:gap-4">
             <a href="#how-it-works" className="hidden text-slate-600 hover:text-slate-900 sm:inline">
@@ -62,7 +62,7 @@ export function LandingPage() {
             </Link>
             <Link
               to="/register"
-              className="whitespace-nowrap rounded-md bg-brand-600 px-3 py-2 font-medium text-white hover:bg-brand-700 sm:px-4"
+              className="whitespace-nowrap rounded-md bg-brand-gradient px-3 py-2 font-medium text-white hover:brightness-110 sm:px-4"
             >
               Get started
             </Link>
@@ -73,6 +73,7 @@ export function LandingPage() {
       <main>
         {/* Hero */}
         <section className="bg-gradient-to-b from-brand-50 to-white">
+          <div aria-hidden="true" className="h-1 bg-brand-gradient" />
           <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 py-16 md:grid-cols-2 md:py-24">
             <div>
               <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-brand-700">
@@ -88,7 +89,7 @@ export function LandingPage() {
               <div className="mt-8 flex flex-wrap gap-3">
                 <Link
                   to="/register"
-                  className="rounded-md bg-brand-600 px-5 py-3 font-medium text-white shadow-sm hover:bg-brand-700"
+                  className="rounded-md bg-brand-gradient px-5 py-3 font-medium text-white shadow-sm hover:brightness-110"
                 >
                   Create a free account
                 </Link>
@@ -120,7 +121,7 @@ export function LandingPage() {
             <ol className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
               {steps.map((step, i) => (
                 <li key={step.title} className="rounded-xl border border-slate-200 p-6">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-600 font-semibold text-white">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-gradient font-semibold text-white">
                     {i + 1}
                   </span>
                   <h3 className="mt-4 font-semibold">{step.title}</h3>
@@ -157,14 +158,14 @@ export function LandingPage() {
         {/* Call to action */}
         <section className="py-16 md:py-24">
           <div className="mx-auto max-w-4xl px-4">
-            <div className="rounded-2xl bg-brand-700 px-6 py-12 text-center text-white sm:px-12">
+            <div className="rounded-2xl bg-brand-gradient px-6 py-12 text-center text-white sm:px-12">
               <h2 className="text-3xl font-bold tracking-tight">Estimate your next project today</h2>
-              <p className="mx-auto mt-3 max-w-xl text-blue-100">
+              <p className="mx-auto mt-3 max-w-xl text-white/85">
                 Create an account and upload your first plan. It takes less than a minute to start.
               </p>
               <Link
                 to="/register"
-                className="mt-8 inline-block rounded-md bg-white px-6 py-3 font-medium text-brand-700 hover:bg-blue-50"
+                className="mt-8 inline-block rounded-md bg-white px-6 py-3 font-medium text-brand-700 hover:bg-brand-50"
               >
                 Get started
               </Link>
@@ -189,7 +190,13 @@ export function LandingPage() {
 function LogoMark() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" className="h-7 w-7">
-      <rect x="2" y="2" width="20" height="20" rx="4" className="fill-brand-600" />
+      <defs>
+        <linearGradient id="fp-logo-gradient" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#023b77" />
+          <stop offset="1" stopColor="#039583" />
+        </linearGradient>
+      </defs>
+      <rect x="2" y="2" width="20" height="20" rx="4" fill="url(#fp-logo-gradient)" />
       <path d="M7 7h4v4H7zM13 7h4v4h-4zM7 13h4v4H7zM13 13h4v4h-4z" fill="white" />
     </svg>
   )
@@ -212,8 +219,8 @@ function HeroIllustration() {
           <line x1="260" y1="160" x2="260" y2="270" />
         </g>
         {/* Highlighted room with tile grid */}
-        <rect x="32" y="32" width="156" height="126" fill="#dbeafe" />
-        <g stroke="#93c5fd" strokeWidth="1">
+        <rect x="32" y="32" width="156" height="126" fill="#e3f3f1" />
+        <g stroke="#7cc6bd" strokeWidth="1">
           {[58, 84, 110, 136, 162].map((x) => (
             <line key={`v${x}`} x1={x} y1="32" x2={x} y2="158" />
           ))}

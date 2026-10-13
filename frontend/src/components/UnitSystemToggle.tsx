@@ -15,7 +15,7 @@ export function UnitSystemToggle() {
           onClick={() => setValue(unit)}
           aria-pressed={value === unit}
           title={title}
-          className={`rounded px-2 py-1 ${value === unit ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+          className={`rounded px-2 py-1 ${value === unit ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
         >
           {label}
         </button>

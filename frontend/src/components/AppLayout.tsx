@@ -19,8 +19,9 @@ export function AppLayout() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <header className="border-b border-slate-200 bg-white">
+        <div aria-hidden="true" className="h-1 bg-brand-gradient" />
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:gap-x-6">
-          <span className="whitespace-nowrap text-lg font-semibold">Floor Planner</span>
+          <span className="text-brand-gradient whitespace-nowrap text-lg font-bold">Floor Planner</span>
           <nav className="flex gap-1">
             <NavLink to="/" end className={navClass}>
               Home

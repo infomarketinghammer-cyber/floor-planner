@@ -4,7 +4,7 @@ import { Link } from 'react-router'
 export function Button({ className = '', ...props }: ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
-      className={`rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50 ${className}`}
+      className={`rounded-md bg-brand-gradient px-4 py-2 text-sm font-medium text-white shadow-sm hover:brightness-110 disabled:opacity-50 disabled:hover:brightness-100 ${className}`}
       {...props}
     />
   )
@@ -32,7 +32,7 @@ export function AuthCard({ title, children }: { title: string; children: ReactNo
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
       <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
         <h1 className="mb-1 text-xl font-semibold">
-          <Link to="/" className="hover:text-brand-700">
+          <Link to="/" className="text-brand-gradient font-bold">
             Floor Planner
           </Link>
         </h1>

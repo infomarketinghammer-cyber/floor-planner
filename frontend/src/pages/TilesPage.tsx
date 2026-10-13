@@ -100,7 +100,7 @@ export function TilesPage() {
               aria-selected={scope === s}
               onClick={() => setScope(s)}
               className={`rounded-full px-3 py-1 text-sm ${
-                scope === s ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'
+                scope === s ? 'bg-brand-600 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'
               }`}
             >
               {SCOPE_LABELS[s]}

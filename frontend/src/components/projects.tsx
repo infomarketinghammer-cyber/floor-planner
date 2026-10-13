@@ -5,7 +5,7 @@ import { Button, ErrorText, Field } from './ui.tsx'
 const statusStyles: Record<ProjectStatus, string> = {
   draft: 'bg-slate-100 text-slate-700',
   reviewed: 'bg-amber-100 text-amber-800',
-  calculated: 'bg-blue-100 text-blue-800',
+  calculated: 'bg-brand-100 text-brand-700',
   exported: 'bg-green-100 text-green-800',
 }
 

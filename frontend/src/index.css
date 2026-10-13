@@ -1,7 +1,26 @@
 @import "tailwindcss";
 
+/*
+ * Brand: a gradient from navy #023b77 to teal #039583.
+ * Navy carries text and links (readable on white); the gradient marks primary actions and
+ * brand surfaces. White text sits on the gradient's darker middle, so buttons stay legible.
+ */
 @theme {
-  --color-brand-50: #eff6ff;
-  --color-brand-600: #2563eb;
-  --color-brand-700: #1d4ed8;
+  --color-brand-50: #e8f2f6;
+  --color-brand-100: #cfe6ea;
+  --color-brand-500: #039583;
+  --color-brand-600: #023b77;
+  --color-brand-700: #012d5c;
+  --color-brand-navy: #023b77;
+  --color-brand-teal: #039583;
+}
+
+@utility bg-brand-gradient {
+  background-image: linear-gradient(135deg, #023b77 0%, #039583 100%);
+}
+
+@utility text-brand-gradient {
+  background-image: linear-gradient(135deg, #023b77 0%, #039583 100%);
+  background-clip: text;
+  color: transparent;
 }

@@ -46,7 +46,7 @@ export function LayoutToggle({ value, onChange }: { value: Layout; onChange: (l:
           type="button"
           aria-pressed={value === l}
           onClick={() => onChange(l)}
-          className={`rounded px-3 py-1 ${value === l ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+          className={`rounded px-3 py-1 ${value === l ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
         >
           {LAYOUT_LABELS[l]}
         </button>

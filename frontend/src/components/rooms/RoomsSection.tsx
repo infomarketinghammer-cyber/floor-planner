@@ -361,7 +361,7 @@ function FilterTabs({ filter, onChange, rooms }: { filter: Filter; onChange: (f:
           aria-selected={filter === f}
           onClick={() => onChange(f)}
           className={`rounded-full px-3 py-1 text-sm ${
-            filter === f ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'
+            filter === f ? 'bg-brand-600 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'
           }`}
         >
           {labels[f]} <span className="tabular-nums opacity-70">{counts[f]}</span>
