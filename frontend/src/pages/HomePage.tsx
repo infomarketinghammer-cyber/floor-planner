@@ -117,6 +117,26 @@ export function HomePage() {
           <p className="text-sm text-slate-500">Your floor plans and material estimates.</p>
         </div>
         <div className="flex items-center gap-3">
+          <label className="cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+            Import a backup
+            <input
+              type="file"
+              accept=".json,application/json"
+              className="sr-only"
+              onChange={async (e) => {
+                const file = e.target.files?.[0]
+                e.target.value = ''
+                if (!file) return
+                setError('')
+                try {
+                  const project = await api.history.importBackup(file)
+                  navigate(`/projects/${project.id}`)
+                } catch (err) {
+                  setError((err as Error).message)
+                }
+              }}
+            />
+          </label>
           <Button onClick={() => setDialogOpen(true)}>+ New project</Button>
         </div>
       </div>

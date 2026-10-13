@@ -36,6 +36,36 @@ interface CallOut {
 }
 
 const PROJECT_PATH = /^\/projects\/([0-9a-f]{24})(\/|$|\?)/
+
+// What a change did, in words, for the history timeline (mirrors backend/app/core/activity.py).
+const LABELS: [string, RegExp, string][] = [
+  ['POST', /\/rooms$/, 'Added a room'],
+  ['PATCH', /\/rooms\/[^/]+$/, 'Edited a room'],
+  ['POST', /\/rooms\/confirm$/, 'Confirmed rooms'],
+  ['PUT', /\/rooms$/, 'Undo or redo'],
+  ['PUT', /\/rooms\/plan-unit$/, 'Set the plan unit'],
+  ['DELETE', /\/rooms\/[^/]+$/, 'Deleted a room'],
+  ['POST', /\/rooms\/import$/, 'Imported a room list'],
+  ['PUT', /\/materials\/default$/, 'Changed the project tile settings'],
+  ['POST', /\/rooms\/materials$/, 'Changed room tile settings'],
+  ['PUT', /\/exclusions$/, 'Changed untiled areas'],
+  ['PUT', /\/walls$/, 'Changed walls and doors'],
+  ['PUT', /\/parts$/, "Changed a room's shape"],
+  ['PUT', /\/extras\/settings$/, 'Changed walls, skirting and sundries settings'],
+  ['PUT', /\/cost\/settings$/, 'Changed cost settings'],
+  ['POST', /\/extract$/, 'Read rooms from a plan'],
+  ['POST', /\/files$/, 'Uploaded a plan'],
+  ['DELETE', /\/files\/[^/]+$/, 'Deleted a plan'],
+  ['PATCH', /^\/projects\/[0-9a-f]{24}$/, 'Renamed the project'],
+  ['POST', /\/apply/, 'Used a compared option'],
+]
+
+function label(method: string, path: string): string | null {
+  const bare = path.split('?')[0]
+  return LABELS.find(([m, rx]) => m === method && rx.test(bare))?.[2] ?? null
+}
+
+const BACKUP_FORMAT = 'floor-planner-backup'
 const FILE_PATH = /^\/projects\/[0-9a-f]{24}\/files\/([0-9a-f]{24})/
 
 function oid(value: unknown): string | null {
@@ -102,7 +132,107 @@ async function local(method: string, path: string): Promise<GuestResult | null> 
     await localStore.putProject({ id, doc, blueprints: [], summary: null, updatedAt: new Date().toISOString() })
     return guestCall('GET', `/projects/${id}`) // fills in the summary
   }
+  if (m && method === 'GET' && path === `/projects/${m[1]}/versions`) {
+    const versions = await localStore.versions(m[1])
+    return ok(
+      versions.map((v) => ({ id: String(v.id), at: v.at, user_name: null, label: v.label, metrics: v.metrics })),
+    )
+  }
+  const restore = /^\/projects\/([0-9a-f]{24})\/versions\/(\d+)\/restore/.exec(path)
+  if (restore && method === 'POST') {
+    const [, projectId, versionId] = restore
+    const version = await localStore.getVersion(Number(versionId))
+    const current = await localStore.getProject(projectId)
+    if (!version || !current) throw new GuestError(404, 'Version not found')
+    // Rooms and settings go back; plan files stay as they are now.
+    await localStore.putProject({ ...current, doc: { ...version.doc, _id: current.doc._id }, updatedAt: new Date().toISOString() })
+    const result = await guestCall('GET', `/projects/${projectId}/rooms`)
+    await snapshot(projectId, 'Restored an earlier version', result.body)
+    return result
+  }
+  if (m && method === 'GET' && path === `/projects/${m[1]}/backup`) {
+    const project = await localStore.getProject(m[1])
+    if (!project) throw new GuestError(404, 'Project not found')
+    const files: Record<string, string> = {}
+    for (const f of await localStore.projectFiles(m[1])) files[f.id] = f.b64
+    const data = {
+      format: BACKUP_FORMAT,
+      version: 1,
+      exported_at: new Date().toISOString(),
+      project: project.doc,
+      blueprints: project.blueprints,
+      files,
+    }
+    const name = String(project.doc.name ?? 'project').replace(/[^\w\- ]+/g, '').trim() || 'project'
+    return { status: 200, body: null, blob: new Blob([JSON.stringify(data)], { type: 'application/json' }), filename: `${name} - backup.floorplan.json` }
+  }
   return null
+}
+
+/** A backup file becomes a new project in this browser, with new ids throughout. */
+export async function importBackupLocally(file: File): Promise<GuestResult> {
+  let data: { format?: string; version?: number; project?: Record<string, unknown>; blueprints?: Record<string, unknown>[]; files?: Record<string, string> }
+  try {
+    data = JSON.parse(await file.text())
+  } catch {
+    throw new GuestError(422, "This isn't a Floor Planner backup file.")
+  }
+  if (data.format !== BACKUP_FORMAT || !data.project) throw new GuestError(422, "This isn't a Floor Planner backup file.")
+  if ((data.version ?? 0) > 1) throw new GuestError(422, 'This backup was made by a newer version of Floor Planner.')
+  const id = newObjectId()
+  const fileMap = new Map<string, string>()
+  for (const [old, b64] of Object.entries(data.files ?? {})) {
+    const fresh = newObjectId()
+    fileMap.set(old, fresh)
+    await localStore.putFile({ id: fresh, projectId: id, b64 })
+  }
+  const remap = (v: unknown) => {
+    const old = oid(v)
+    return old && fileMap.has(old) ? { $oid: fileMap.get(old)! } : v
+  }
+  const blueprintMap = new Map<string, string>()
+  const blueprints = (data.blueprints ?? []).map((bp) => {
+    const fresh = newObjectId()
+    blueprintMap.set(oid(bp._id)!, fresh)
+    return {
+      ...bp,
+      _id: { $oid: fresh },
+      project_id: { $oid: id },
+      file_id: remap(bp.file_id),
+      converted_file_id: remap(bp.converted_file_id),
+      pages: ((bp.pages as Record<string, unknown>[]) ?? []).map((p) => ({ ...p, thumbnail_id: remap(p.thumbnail_id) })),
+    }
+  })
+  const rooms = ((data.project.rooms as Record<string, unknown>[]) ?? []).map((r) => {
+    const source = r.source as { file_id?: string } | null
+    return source?.file_id && blueprintMap.has(source.file_id)
+      ? { ...r, source: { ...source, file_id: blueprintMap.get(source.file_id) } }
+      : r
+  })
+  const now = { $date: new Date().toISOString() }
+  const doc = { ...data.project, _id: { $oid: id }, rooms, created_at: now, updated_at: now }
+  delete (doc as Record<string, unknown>).owner_id
+  await localStore.putProject({ id, doc, blueprints, summary: null, updatedAt: new Date().toISOString() })
+  return guestCall('GET', `/projects/${id}`) // fills in the summary
+}
+
+/** Keep a snapshot of a guest project after a change (the history timeline). */
+async function snapshot(projectId: string, what: string, body: unknown) {
+  const project = await localStore.getProject(projectId)
+  if (!project) return
+  const state = body as { estimate?: { ready?: boolean; totals?: { boxes?: number } | null }; cost?: { total?: string; has_prices?: boolean } | null; rooms?: unknown[] } | null
+  await localStore.addVersion({
+    projectId,
+    at: new Date().toISOString(),
+    label: what,
+    doc: project.doc,
+    metrics: {
+      ready: !!state?.estimate?.ready,
+      rooms: Array.isArray(state?.rooms) ? state!.rooms!.length : undefined,
+      boxes: state?.estimate?.totals?.boxes,
+      cost: state?.cost?.has_prices ? state.cost.total : null,
+    },
+  })
 }
 
 export async function guestCall(
@@ -172,6 +302,8 @@ export async function guestCall(
   await localStore.set('tiles', out.tiles)
 
   if (out.status >= 400) throw new GuestError(out.status, errorMessage(out.body, 'Request failed'))
+  const what = label(method, path)
+  if (what && out.project) await snapshot(oid(out.project._id)!, what, out.body)
   const filename = /filename\*=UTF-8''([^;]+)/i.exec(out.content_disposition ?? '')?.[1]
   return {
     status: out.status,

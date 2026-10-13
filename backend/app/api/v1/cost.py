@@ -15,6 +15,7 @@ from app.api.v1.rooms import rooms_out
 from app.db.mongo import get_db
 from app.schemas.cost import CostSettings
 from app.schemas.project import RoomsOut
+from app.services.history import record_version
 from app.services.projects import get_project_or_404
 
 router = APIRouter(prefix="/projects/{project_id}/cost", tags=["cost"])
@@ -36,4 +37,5 @@ async def set_cost_settings(project_id: str, body: CostSettings, user: CurrentUs
     )
     if doc is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
+    await record_version(doc)
     return rooms_out(doc)

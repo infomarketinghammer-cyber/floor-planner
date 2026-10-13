@@ -29,6 +29,7 @@ from app.schemas.material import (
 from app.schemas.project import RoomOrigin, RoomPart, RoomsOut
 from app.services.estimate import build_estimate, room_parts
 from app.services.extras import extras_settings
+from app.services.history import record_version
 from app.services.materials import effective, load_tile_ref, project_default
 from app.services.projects import get_project_or_404
 from app.services.review import review_state
@@ -214,6 +215,7 @@ async def set_extras_settings(
         {"$set": {"extras_settings": settings.model_dump(), "updated_at": datetime.now(UTC)}},
         return_document=ReturnDocument.AFTER,
     )
+    await record_version(doc)
     return rooms_out(doc)
 
 

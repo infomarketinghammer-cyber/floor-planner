@@ -6,6 +6,7 @@ from bson.errors import InvalidId
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from app.core.activity import set_acting_user
 from app.core.guest import guest_user
 from app.core.security import decode_access_token
 from app.db.mongo import get_db
@@ -38,6 +39,7 @@ async def get_current_user(
     user = await get_db().users.find_one({"_id": parse_object_id(payload["sub"])})
     if user is None or not user["is_active"]:
         raise unauthorized
+    set_acting_user(user)  # for the project history and activity log
     return user
 
 

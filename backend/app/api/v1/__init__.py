@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from app.api.v1 import (
     admin,
@@ -8,6 +8,7 @@ from app.api.v1 import (
     feedback,
     files,
     guest,
+    history,
     materials,
     projects,
     public,
@@ -17,9 +18,12 @@ from app.api.v1 import (
     tiles,
     users,
 )
+from app.core.activity import track_action
 
-api_router = APIRouter(prefix="/api/v1")
+# Every route records what it does, for the project history and activity log.
+api_router = APIRouter(prefix="/api/v1", dependencies=[Depends(track_action)])
 api_router.include_router(auth.router)
+api_router.include_router(history.router)  # before projects: /projects/import
 api_router.include_router(projects.router)
 api_router.include_router(files.router)
 api_router.include_router(rooms.router)

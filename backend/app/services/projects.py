@@ -11,6 +11,7 @@ from app.db.mongo import get_db
 from app.schemas.project import ProjectStatus
 from app.schemas.user import Role
 from app.services.accuracy import sync_outcomes
+from app.services.history import record_version
 from app.services.materials import materials_summary, project_default
 from app.services.review import review_state
 
@@ -74,4 +75,5 @@ async def save_rooms(
         await get_db().projects.update_one({"_id": project_id}, {"$set": {"status": status_.value}})
         doc["status"] = status_.value
     await sync_outcomes(doc)  # extraction accuracy follows every room change (PRD 4.13)
+    await record_version(doc)  # project history (PRD 4.12)
     return doc

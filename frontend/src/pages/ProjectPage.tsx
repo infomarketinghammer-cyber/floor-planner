@@ -5,6 +5,7 @@ import { useAuth } from '../auth/AuthContext.tsx'
 import type { Project } from '../api/types.ts'
 import { BlueprintsSection } from '../components/Blueprints.tsx'
 import { ExportSection } from '../components/exports/ExportSection.tsx'
+import { HistoryPanel } from '../components/history/HistoryPanel.tsx'
 import { ExtractionSummary } from '../components/feedback/ExtractionSummary.tsx'
 import { ScenariosSection } from '../components/scenarios/ScenariosSection.tsx'
 import { QuotesSection } from '../components/quotes/QuotesSection.tsx'
@@ -101,6 +102,8 @@ export function ProjectPage() {
       {review.state?.estimate.ready && (
         <ExportSection projectId={projectId} estimate={review.state.estimate} onExported={refreshProject} />
       )}
+
+      <HistoryPanel projectId={projectId} review={review} />
 
       <details className="group max-w-xl rounded-xl border border-slate-200 bg-white">
         <summary className="cursor-pointer list-none px-6 py-4 font-semibold">

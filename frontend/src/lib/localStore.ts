@@ -6,10 +6,11 @@
  *   returned it (Extended JSON), its plan files' metadata, and its card for the project list
  * - files: { id, projectId, b64 }: plan files and page previews, base64
  * - kv: guest id, the guest's own tiles, display preferences
+ * - history: { id, projectId, at, label, doc, metrics }: a snapshot after each change
  */
 
 const DB_NAME = 'floor-planner'
-const DB_VERSION = 1
+const DB_VERSION = 2 // 2: project history
 
 export interface LocalProject {
   id: string
@@ -37,6 +38,9 @@ function open(): Promise<IDBDatabase> {
         db.createObjectStore('files', { keyPath: 'id' }).createIndex('projectId', 'projectId')
       }
       if (!db.objectStoreNames.contains('kv')) db.createObjectStore('kv')
+      if (!db.objectStoreNames.contains('history')) {
+        db.createObjectStore('history', { keyPath: 'id', autoIncrement: true }).createIndex('projectId', 'projectId')
+      }
     }
     req.onsuccess = () => resolve(req.result)
     req.onerror = () => {
@@ -54,7 +58,18 @@ function done<T>(req: IDBRequest<T>): Promise<T> {
   })
 }
 
-async function store(name: 'projects' | 'files' | 'kv', mode: IDBTransactionMode = 'readonly') {
+export interface LocalVersion {
+  id?: number
+  projectId: string
+  at: string
+  label: string
+  doc: Record<string, unknown>
+  metrics: { boxes?: number; cost?: string | null; rooms?: number; ready?: boolean }
+}
+
+const MAX_LOCAL_VERSIONS = 30 // per project
+
+async function store(name: 'projects' | 'files' | 'kv' | 'history', mode: IDBTransactionMode = 'readonly') {
   return (await open()).transaction(name, mode).objectStore(name)
 }
 
@@ -71,6 +86,7 @@ export const localStore = {
   async deleteProject(id: string): Promise<void> {
     await done((await store('projects', 'readwrite')).delete(id))
     for (const f of await localStore.projectFiles(id)) await localStore.deleteFile(f.id)
+    for (const v of await localStore.versions(id)) await done((await store('history', 'readwrite')).delete(v.id!))
   },
   async getFile(id: string): Promise<LocalFile | undefined> {
     return done((await store('files')).get(id) as IDBRequest<LocalFile | undefined>)
@@ -91,9 +107,22 @@ export const localStore = {
   async set(key: string, value: unknown): Promise<void> {
     await done((await store('kv', 'readwrite')).put(value, key))
   },
+  async versions(projectId: string): Promise<LocalVersion[]> {
+    const index = (await store('history')).index('projectId')
+    const all = (await done(index.getAll(projectId) as IDBRequest<LocalVersion[]>)).sort((a, b) => b.at.localeCompare(a.at))
+    return all
+  },
+  async addVersion(v: LocalVersion): Promise<void> {
+    await done((await store('history', 'readwrite')).add(v))
+    const all = await localStore.versions(v.projectId)
+    for (const old of all.slice(MAX_LOCAL_VERSIONS)) await done((await store('history', 'readwrite')).delete(old.id!))
+  },
+  async getVersion(id: number): Promise<LocalVersion | undefined> {
+    return done((await store('history')).get(id) as IDBRequest<LocalVersion | undefined>)
+  },
   /** Delete everything kept in this browser. */
   async clear(): Promise<void> {
-    for (const name of ['projects', 'files', 'kv'] as const) await done((await store(name, 'readwrite')).clear())
+    for (const name of ['projects', 'files', 'kv', 'history'] as const) await done((await store(name, 'readwrite')).clear())
   },
 }
 

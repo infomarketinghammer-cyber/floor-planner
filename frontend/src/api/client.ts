@@ -420,6 +420,28 @@ export const api = {
     apply: (projectId: string, id: string, version: number) =>
       request<RoomsState>(`/projects/${projectId}/scenarios/${id}/apply?version=${version}`, json('POST')),
   },
+  history: {
+    versions: (projectId: string) =>
+      request<{ id: string; at: string; user_name: string | null; label: string; metrics: Record<string, unknown> }[]>(
+        `/projects/${projectId}/versions`,
+      ),
+    restore: (projectId: string, versionId: string, version: number) =>
+      request<RoomsState>(`/projects/${projectId}/versions/${versionId}/restore?version=${version}`, json('POST')),
+    backup: (projectId: string) => requestFile(`/projects/${projectId}/backup`),
+    /** A backup file becomes a new project (in the account, or in this browser for guests). */
+    importBackup: async (file: File): Promise<Project> => {
+      if (guestMode) {
+        const { importBackupLocally, GuestError } = await import('./guest.ts')
+        try {
+          return (await importBackupLocally(file)).body as Project
+        } catch (err) {
+          if (err instanceof GuestError) throw new ApiError(err.status, err.message)
+          throw err
+        }
+      }
+      return request<Project>('/projects/import', { method: 'POST', body: formData({ file }) })
+    },
+  },
   feedback: {
     list: (projectId: string) => request<Feedback[]>(`/projects/${projectId}/feedback`),
     add: (
