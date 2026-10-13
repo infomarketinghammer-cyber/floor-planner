@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ButtonHTMLAttributes, type KeyboardE
 import { api } from '../../api/client.ts'
 import type { LengthUnit, PlanUnit, ReviewRoom, RoomsState, RoomUpdate } from '../../api/types.ts'
 import { formatArea, plural, useAreaUnit } from '../../lib/format.ts'
-import { bareNumber, editableLength, lengthUnitLabels, roomArea } from '../../lib/units.ts'
+import { bareNumber, editableLength, formatLength, lengthUnitLabels, roomArea } from '../../lib/units.ts'
 import { Button, ErrorText } from '../ui.tsx'
 import { PlanViewer } from './PlanViewer.tsx'
 import { AddRoomForm, ImportPanel, UNITS, type ImportOptions, type NewRoom } from './RoomForms.tsx'
@@ -613,12 +613,27 @@ function Issues({ room }: { room: ReviewRoom }) {
         )}
         <span className="text-xs text-slate-400">{ORIGIN_LABELS[room.origin]}</span>
       </div>
+      {room.origin === 'edited' && room.extracted && <PlanRead room={room} />}
       {room.issues.map((issue) => (
         <p key={issue.code} className={`text-xs ${issue.severity === 'block' ? 'text-red-700' : 'text-amber-700'}`}>
           {issue.severity === 'block' ? '✕' : '⚠'} {issue.message}
         </p>
       ))}
     </div>
+  )
+}
+
+/** What the plan reader originally read, for a room the user has corrected (PRD 4.13). */
+function PlanRead({ room }: { room: ReviewRoom }) {
+  const read = room.extracted!
+  const size =
+    read.length_mm !== null && read.width_mm !== null
+      ? `${formatLength(read.length_mm, read.unit)} × ${formatLength(read.width_mm, read.unit)}`
+      : 'no size'
+  return (
+    <p className="text-xs text-slate-500" title="What was read from the plan before your changes">
+      Plan read: {read.name} · {size}
+    </p>
   )
 }
 

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Estimate } from '../../api/types.ts'
 import { BudgetAlert, CostSection } from '../cost/CostSection.tsx'
+import { FeedbackPanel } from '../feedback/FeedbackPanel.tsx'
 import { ResultsOverlay } from '../results/ResultsOverlay.tsx'
 import { ResultsTable } from '../results/ResultsTable.tsx'
 import { tileColors } from '../results/tileColors.ts'
@@ -125,6 +126,7 @@ function Ready({
         selectedId={selectedId}
         onSelect={setSelectedId}
       />
+      <FeedbackPanel projectId={projectId} estimate={estimate} selectedRoomId={selectedId} />
       <ResultsOverlay
         projectId={projectId}
         estimate={estimate}

@@ -19,6 +19,7 @@ from app.extraction.service import extract_pages, to_room
 from app.extraction.sources import render_preview
 from app.schemas.blueprint import BlueprintOut, ExtractionOut, PageUpdate, blueprint_out
 from app.schemas.project import Room, RoomOrigin
+from app.services.accuracy import forget_rooms
 from app.services.projects import get_project_or_404, save_rooms, touch
 from app.uploads.inspect import FileKind, UploadError, inspect_upload
 
@@ -268,6 +269,7 @@ async def extract_rooms(project_id: str, file_id: str, user: CurrentUser) -> Ext
             expected_version=current.get("rooms_version") or 0,
         )
         if saved is not None:
+            await forget_rooms(project["_id"], list(replaced_ids))
             break
     else:
         raise HTTPException(

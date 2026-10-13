@@ -58,7 +58,9 @@ def _best_rotation(ink: Image.Image, angles: np.ndarray) -> float:
     """Rotation that makes the horizontal ink profile peakiest (walls and text rows line up)."""
     best_angle, best_score = 0.0, -1.0
     for angle in angles:
-        rotated = np.asarray(ink.rotate(float(angle), resample=Image.Resampling.NEAREST, fillcolor=0))
+        rotated = np.asarray(
+            ink.rotate(float(angle), resample=Image.Resampling.NEAREST, fillcolor=0)
+        )
         score = float(np.square(rotated.sum(axis=1, dtype=np.float64)).sum())
         if score > best_score:
             best_angle, best_score = float(angle), score
@@ -97,14 +99,20 @@ def assess_image(img: Image.Image, *, check_resolution: bool = True) -> QualityR
 
     if contrast < MIN_CONTRAST or ink_fraction < MIN_INK_FRACTION:
         report.warnings.append(
-            Warning("blank_or_faint", "This page looks blank or very faint. Check the right page was uploaded.")
+            Warning(
+                "blank_or_faint",
+                "This page looks blank or very faint. Check the right page was uploaded.",
+            )
         )
         return report  # sharpness and skew are meaningless on an empty page
 
     report.sharpness = round(_sharpness(gray, contrast), 3)
     if report.sharpness < MIN_SHARPNESS:
         report.warnings.append(
-            Warning("blurry", "The image looks blurry. Text may be misread; retake the photo in focus if possible.")
+            Warning(
+                "blurry",
+                "The image looks blurry. Text may be misread; retake the photo in focus if possible.",
+            )
         )
 
     report.skew_deg = _skew_degrees(Image.fromarray((ink_mask * 255).astype(np.uint8)))

@@ -66,7 +66,9 @@ def text_pdf(page_texts: list[str]) -> bytes:
     out.write(f"xref\n0 {len(objs) + 1}\n0000000000 65535 f \n".encode())
     for off in offsets:
         out.write(f"{off:010d} 00000 n \n".encode())
-    out.write(f"trailer\n<< /Size {len(objs) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF".encode())
+    out.write(
+        f"trailer\n<< /Size {len(objs) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF".encode()
+    )
     return out.getvalue()
 
 
@@ -125,20 +127,25 @@ PLAN_EXPECTED = {
 
 
 def _pdf_escape(text: str) -> str:
-    return text.replace("\\", "\\\\").replace("(", "\(").replace(")", "\)")
+    return text.replace("\\", "\\\\").replace("(", r"\(").replace(")", r"\)")
 
 
-def layout_pdf(labels: list[tuple[float, float, str]], width: int = 842, height: int = 595, size: int = 10) -> bytes:
+def layout_pdf(
+    labels: list[tuple[float, float, str]], width: int = 842, height: int = 595, size: int = 10
+) -> bytes:
     """One-page PDF with text at given positions (y measured from the top)."""
     ops = " ".join(
-        f"BT /F1 {size} Tf {x:.1f} {height - y - size:.1f} Td ({_pdf_escape(t)}) Tj ET" for x, y, t in labels
+        f"BT /F1 {size} Tf {x:.1f} {height - y - size:.1f} Td ({_pdf_escape(t)}) Tj ET"
+        for x, y, t in labels
     )
     objs = [
         "<< /Type /Catalog /Pages 2 0 R >>",
         "<< /Type /Pages /Kids [4 0 R] /Count 1 >>",
         "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-        f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {width} {height}] "
-        "/Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>",
+        (
+            f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {width} {height}] "
+            "/Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>"
+        ),
         f"<< /Length {len(ops)} >>\nstream\n{ops}\nendstream",
     ]
     out = io.BytesIO()
@@ -151,7 +158,9 @@ def layout_pdf(labels: list[tuple[float, float, str]], width: int = 842, height:
     out.write(f"xref\n0 {len(objs) + 1}\n0000000000 65535 f \n".encode())
     for off in offsets:
         out.write(f"{off:010d} 00000 n \n".encode())
-    out.write(f"trailer\n<< /Size {len(objs) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF".encode())
+    out.write(
+        f"trailer\n<< /Size {len(objs) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF".encode()
+    )
     return out.getvalue()
 
 
@@ -167,11 +176,23 @@ def plan_dxf(insunits: int = 2) -> bytes:
     msp.add_line((28, 0), (28, 25))
     msp.add_line((0, 12), (40, 12))
     # 0.5 ft text; y measured from the bottom in DXF
-    for x, y, text in [(3, 20, "BEDROOM 1"), (17, 20, "LIVING"), (30, 20, "KITCHEN"), (3, 8, "TOILET")]:
+    for x, y, text in [
+        (3, 20, "BEDROOM 1"),
+        (17, 20, "LIVING"),
+        (30, 20, "KITCHEN"),
+        (3, 8, "TOILET"),
+    ]:
         msp.add_text(text, dxfattribs={"height": 0.5}).set_placement((x, y))
-    for x, y, text in [(3, 19, "12'0\" x 10'0\""), (17, 19, "15'0\" x 12'0\""), (30, 19, "10'0\" x 8'0\""), (3, 7, "7'0\" x 5'0\"")]:
+    for x, y, text in [
+        (3, 19, "12'0\" x 10'0\""),
+        (17, 19, "15'0\" x 12'0\""),
+        (30, 19, "10'0\" x 8'0\""),
+        (3, 7, "7'0\" x 5'0\""),
+    ]:
         msp.add_text(text, dxfattribs={"height": 0.4}).set_placement((x, y))
-    msp.add_mtext("BALCONY\P10'0\" x 4'0\"", dxfattribs={"char_height": 0.5}).set_location((17, 8.5))
+    msp.add_mtext("BALCONY\\P10'0\" x 4'0\"", dxfattribs={"char_height": 0.5}).set_location(
+        (17, 8.5)
+    )
     msp.add_text("D1", dxfattribs={"height": 0.4}).set_placement((13, 15))
     msp.add_text("NOTE: ALL DIMENSIONS IN FEET", dxfattribs={"height": 0.4}).set_placement((0, -2))
     dim = msp.add_linear_dim(base=(0, 27), p1=(0, 25), p2=(14, 25))  # a wall dimension line

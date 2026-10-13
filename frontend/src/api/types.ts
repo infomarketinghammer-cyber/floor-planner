@@ -168,6 +168,15 @@ export interface Room {
   material: MaterialOverride
   exclusions: Exclusion[]
   area_mm2: string | null // odd-shaped rooms known only by area
+  extracted: ExtractedValues | null // what the plan reader read; never changes
+}
+
+/** What extraction read for a room, kept through later edits (PRD 4.13). */
+export interface ExtractedValues {
+  name: string
+  length_mm: string | null
+  width_mm: string | null
+  unit: LengthUnit
 }
 
 export interface RoomIssue {
@@ -412,4 +421,82 @@ export interface Cost {
   total: string
   budget: { target: string; remaining: string; used_pct: string; status: 'under' | 'near' | 'over' } | null
   warnings: string[]
+}
+
+// --- Feedback and accuracy (PRD 4.13, 6.5) -------------------------------------------------------
+export interface Feedback {
+  id: string
+  room_id: string | null // null: the whole project
+  room_name: string | null
+  right: boolean
+  estimated_boxes: number
+  actual_boxes: number | null
+  comment: string | null
+  created_at: string
+}
+
+export interface RoomValues {
+  name: string
+  length_mm: string | null
+  width_mm: string | null
+  unit: LengthUnit
+}
+
+export interface Correction {
+  room_id: string
+  status: 'corrected' | 'deleted' | 'added'
+  fields: ('name' | 'size')[]
+  extracted: RoomValues | null
+  final: RoomValues | null
+}
+
+export interface AccuracySummary {
+  rooms_read: number
+  pending: number
+  correct: number
+  corrected: number
+  names_corrected: number
+  sizes_corrected: number
+  deleted: number
+  added: number
+  accuracy_pct: string | null
+  name_accuracy_pct: string | null
+  size_accuracy_pct: string | null
+  found_pct: string | null
+  by_method: { method: string; read: number; reviewed: number; correct: number; accuracy_pct: string | null }[]
+  corrections: Correction[]
+}
+
+export interface ProjectAccuracy {
+  summary: AccuracySummary | null // null: no rooms were read from a plan
+  evaluation: { in_eval_set: boolean; added_at: string | null; eligible: boolean; reason: string | null }
+}
+
+export interface AdminAccuracy {
+  extraction: AccuracySummary
+  feedback: {
+    total: number
+    right: number
+    wrong: number
+    right_pct: string | null
+    wrong_on_extracted_rooms: number
+    wrong_on_corrected_rooms: number
+    recent: {
+      room_name: string | null
+      estimated_boxes: number
+      actual_boxes: number | null
+      comment: string | null
+      origin: string | null
+      created_at: string
+    }[]
+  }
+}
+
+export interface EvalEntry {
+  id: string
+  project_name: string | null
+  files: number
+  rooms: number
+  accuracy_pct_at_add: string | null
+  created_at: string
 }

@@ -9,7 +9,9 @@ from app.uploads.inspect import UploadError
 from app.uploads.room_import import parse_room_table
 
 
-def parse(filename: str, data: bytes | str, unit: LengthUnit = LengthUnit.FT_IN, max_rows: int = 500):
+def parse(
+    filename: str, data: bytes | str, unit: LengthUnit = LengthUnit.FT_IN, max_rows: int = 500
+):
     raw = data.encode() if isinstance(data, str) else data
     return parse_room_table(filename, raw, default_unit=unit, max_rows=max_rows)
 
@@ -76,10 +78,12 @@ def test_row_errors_are_reported_and_good_rows_kept():
 
 
 def test_xlsx_with_numeric_cells():
-    result = parse("rooms.xlsx", xlsx([["Room", "Length", "Width", "Unit"], ["Kitchen", 3.6, 3, "m"]]))
+    result = parse(
+        "rooms.xlsx", xlsx([["Room", "Length", "Width", "Unit"], ["Kitchen", 3.6, 3, "m"]])
+    )
     assert result.errors == []
     assert result.rooms[0].length_mm == Decimal("3600.0")
-    assert result.rooms[0].width_mm == Decimal("3000")
+    assert result.rooms[0].width_mm == Decimal(3000)
 
 
 @pytest.mark.parametrize(

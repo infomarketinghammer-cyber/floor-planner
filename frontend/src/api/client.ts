@@ -2,6 +2,10 @@ import type {
   AdminStats,
   Blueprint,
   CostSettings,
+  AdminAccuracy,
+  EvalEntry,
+  Feedback,
+  ProjectAccuracy,
   ExtractionResult,
   LengthUnit,
   Project,
@@ -217,6 +221,21 @@ export const api = {
     emailShoppingList: (projectId: string, data: { to: string[]; message?: string; attach_pdf: boolean }) =>
       request<{ sent_to: string[] }>(`/projects/${projectId}/exports/shopping-list/email`, json('POST', data)),
   },
+  feedback: {
+    list: (projectId: string) => request<Feedback[]>(`/projects/${projectId}/feedback`),
+    add: (
+      projectId: string,
+      data: { room_id: string | null; right: boolean; actual_boxes?: number; comment?: string },
+    ) => request<Feedback>(`/projects/${projectId}/feedback`, json('POST', data)),
+    remove: (projectId: string, id: string) => request<void>(`/projects/${projectId}/feedback/${id}`, json('DELETE')),
+  },
+  accuracy: {
+    get: (projectId: string) => request<ProjectAccuracy>(`/projects/${projectId}/accuracy`),
+    addToEvalSet: (projectId: string) =>
+      request<ProjectAccuracy>(`/projects/${projectId}/evaluation`, json('POST', { consent: true })),
+    removeFromEvalSet: (projectId: string) =>
+      request<ProjectAccuracy>(`/projects/${projectId}/evaluation`, json('DELETE')),
+  },
   tiles: {
     list: (filters: { scope?: 'all' | 'catalog' | 'mine'; q?: string; type?: TileType | ''; region?: TileRegion | '' } = {}) => {
       const params = new URLSearchParams()
@@ -235,6 +254,10 @@ export const api = {
   },
   admin: {
     stats: () => request<AdminStats>('/admin/stats'),
+    accuracy: () => request<AdminAccuracy>('/admin/accuracy'),
+    evaluationSet: () => request<EvalEntry[]>('/admin/evaluation'),
+    removeEvalEntry: (id: string) => request<void>(`/admin/evaluation/${id}`, json('DELETE')),
+    evaluationExport: () => requestFile('/admin/evaluation/export'),
     users: () => request<User[]>('/admin/users'),
     updateUser: (id: string, data: Partial<Pick<User, 'role' | 'is_active'>>) =>
       request<User>(`/admin/users/${id}`, json('PATCH', data)),

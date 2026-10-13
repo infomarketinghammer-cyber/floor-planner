@@ -46,6 +46,16 @@ class RoomSource(BaseModel):
     text: str = ""  # exactly what was read
 
 
+class ExtractedValues(BaseModel):
+    """What extraction read, kept unchanged through later edits (PRD 4.13), so corrections
+    can be measured against it."""
+
+    name: str
+    length_mm: DecimalStr | None = None
+    width_mm: DecimalStr | None = None
+    unit: LengthUnit = LengthUnit.FT_IN
+
+
 class Room(BaseModel):
     """A room as stored inside a project. Dimensions are canonical millimetres;
     `unit` is only how the user entered/sees them."""
@@ -83,6 +93,7 @@ class Room(BaseModel):
     flags: list[str] = Field(default_factory=list)
     unit_explicit: bool = True  # False when the unit was assumed, not written on the plan
     source: RoomSource | None = None
+    extracted: ExtractedValues | None = None  # set once, at extraction; never edited
 
     @field_serializer("length_mm", "width_mm")
     def _decimal_as_str(self, value: Decimal | None) -> str | None:

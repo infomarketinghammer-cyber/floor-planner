@@ -77,7 +77,9 @@ def _read_xlsx(data: bytes) -> list[list[str]]:
     try:
         wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
     except (zipfile.BadZipFile, KeyError, OSError, ValueError):
-        raise UploadError("This Excel file can't be opened. Save it again as .xlsx and retry.") from None
+        raise UploadError(
+            "This Excel file can't be opened. Save it again as .xlsx and retry."
+        ) from None
     try:
         sheet = wb.worksheets[0]
         return [[_cell(c) for c in row] for row in sheet.iter_rows(values_only=True)]
@@ -93,9 +95,13 @@ def _map_headers(header: list[str]) -> dict[str, int]:
             if key in aliases and field_name not in columns:
                 columns[field_name] = i
     if "name" not in columns:
-        raise UploadError('No "Room" column found. The first row must be headers: Room, Length, Width, Unit, Floor.')
+        raise UploadError(
+            'No "Room" column found. The first row must be headers: Room, Length, Width, Unit, Floor.'
+        )
     if not ({"length", "width"} <= columns.keys() or "size" in columns):
-        raise UploadError('Add "Length" and "Width" columns (or one "Size" column like 12\'0" x 10\'0").')
+        raise UploadError(
+            'Add "Length" and "Width" columns (or one "Size" column like 12\'0" x 10\'0").'
+        )
     return columns
 
 
@@ -110,7 +116,9 @@ def parse_room_table(
     elif ext == ".xlsx":
         table = _read_xlsx(data)
     elif ext == ".xls":
-        raise UploadError("Old .xls files aren't supported. Save the sheet as .xlsx or CSV.", status_code=415)
+        raise UploadError(
+            "Old .xls files aren't supported. Save the sheet as .xlsx or CSV.", status_code=415
+        )
     else:
         raise UploadError("Room lists must be .csv or .xlsx files.", status_code=415)
 
@@ -138,7 +146,9 @@ def parse_room_table(
             else:
                 parts = _SIZE_SPLIT.split(get(row, "size"))
                 if len(parts) != 2:
-                    raise DimensionError(f'Size "{get(row, "size")}" should look like 12\'0" x 10\'0"')
+                    raise DimensionError(
+                        f'Size "{get(row, "size")}" should look like 12\'0" x 10\'0"'
+                    )
                 length_text, width_text = parts
             if not length_text or not width_text:
                 raise DimensionError("Length and width are both required")

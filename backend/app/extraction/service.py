@@ -17,7 +17,7 @@ from app.extraction import vision
 from app.extraction.models import ExtractedRoom
 from app.extraction.pairing import pair_rooms
 from app.extraction.sources import dxf_tokens, pdf_page_tokens, render_pdf_page
-from app.schemas.project import Room, RoomOrigin, RoomSource
+from app.schemas.project import ExtractedValues, Room, RoomOrigin, RoomSource
 from app.uploads.inspect import FileKind
 
 _vision_slots = asyncio.Semaphore(3)  # concurrent vision calls across the server
@@ -86,13 +86,15 @@ def _box(b) -> list[float] | None:
 def to_room(
     extracted: ExtractedRoom, *, file_id: str, page: int, method: str, floor: str | None
 ) -> Room:
+    name = (extracted.name or "Unnamed room")[:100]
+    unit = extracted.unit or LengthUnit.FT_IN
     return Room(
         id=uuid.uuid4().hex[:12],
-        name=(extracted.name or "Unnamed room")[:100],
+        name=name,
         floor=floor,
         length_mm=extracted.length_mm,
         width_mm=extracted.width_mm,
-        unit=extracted.unit or LengthUnit.FT_IN,
+        unit=unit,
         confirmed=False,  # PRD 6.3: nothing extracted reaches calculation unreviewed
         origin=RoomOrigin.AUTO,
         confidence=extracted.confidence,
@@ -107,5 +109,8 @@ def to_room(
             name_bbox=_box(extracted.name_bbox),
             size_bbox=_box(extracted.size_bbox),
             text=extracted.raw_text[:300],
+        ),
+        extracted=ExtractedValues(
+            name=name, length_mm=extracted.length_mm, width_mm=extracted.width_mm, unit=unit
         ),
     )

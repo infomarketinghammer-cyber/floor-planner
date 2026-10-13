@@ -3,6 +3,7 @@ import { api } from '../../api/client.ts'
 import type { AdminStats, User } from '../../api/types.ts'
 import { useAuth } from '../../auth/AuthContext.tsx'
 import { ErrorText } from '../../components/ui.tsx'
+import { AccuracyPanel } from './AccuracyPanel.tsx'
 
 export function AdminPage() {
   const { user: me } = useAuth()
@@ -95,6 +96,8 @@ export function AdminPage() {
           </tbody>
         </table>
       </div>
+
+      <AccuracyPanel />
     </div>
   )
 }

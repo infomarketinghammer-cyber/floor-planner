@@ -39,3 +39,8 @@ async def _ensure_indexes() -> None:
     # Shopping-list emails sent, for the per-user hourly limit; entries expire after a day.
     await db.email_log.create_index([("user_id", ASCENDING), ("sent_at", ASCENDING)])
     await db.email_log.create_index([("sent_at", ASCENDING)], expireAfterSeconds=86_400)
+    await db.extraction_outcomes.create_index(
+        [("project_id", ASCENDING), ("room_id", ASCENDING)], unique=True
+    )
+    await db.feedback.create_index([("project_id", ASCENDING), ("created_at", ASCENDING)])
+    await db.eval_plans.create_index([("project_id", ASCENDING)])

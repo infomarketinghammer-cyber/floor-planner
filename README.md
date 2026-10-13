@@ -58,16 +58,17 @@ floor-planner/
 │       └── middleware/ authenticate, requireRole
 ├── backend/           FastAPI (Python 3.11+)
 │   ├── app/
-│   │   ├── api/v1/    auth, projects, admin routers
+│   │   ├── api/v1/    routers: auth, projects, files, rooms, materials, cost, exports, feedback, admin
 │   │   ├── core/      settings, password hashing, JWT
 │   │   ├── db/        MongoDB client + indexes
 │   │   ├── schemas/   Pydantic request/response models
 │   │   ├── engine/    deterministic units + tile/waste/box calculation
-│   │   ├── extraction/ blueprint extraction pipeline (next)
-│   │   └── exports/   PDF / Excel / shopping list (next)
+│   │   ├── extraction/ blueprint extraction pipeline
+│   │   ├── exports/   PDF report, Excel workbook, shopping list
+│   │   └── evaluation.py  evaluation set: add verified plans, score the extractor
 │   ├── devserver.py   dev entry point used with auto-reload
 │   └── tests/         pytest (engine golden cases, incl. PRD acceptance examples)
-├── eval/              extraction evaluation set (PRD 6.5)
+├── eval/              local exports of the evaluation set (gitignored plans)
 ├── docs/              PRD
 └── scripts/           dev helpers
 ```
@@ -248,3 +249,30 @@ Run FastAPI separately (e.g. `uvicorn app.main:app --host 127.0.0.1 --port 8000`
 
 Note: dev auto-reload for the backend uses `watchfiles` instead of `uvicorn --reload`, because
 uvicorn's reloader hangs on Windows when its output is piped.
+
+## Exports (PRD 4.11)
+
+`GET /api/projects/:id/exports/report.pdf`, `estimate.xlsx` and `shopping-list.pdf`. The workbook
+uses live formulas (boxes, totals, costs, tax, budget). Emailing the shopping list goes through
+[Resend](https://resend.com): set `RESEND_API_KEY` and `EMAIL_FROM` (a sender on a domain verified in
+Resend) in `backend/.env`; without them the email option is hidden. PDFs use Arial (Windows) or
+DejaVu Sans (Linux, `fonts-dejavu-core`) so currency signs like ₹ render.
+
+## Feedback and accuracy (PRD 4.13, 6.5)
+
+- Every extracted room keeps what was read (`extracted`), so edits are measurable. After each room
+  change, one outcome per room is written to `extraction_outcomes`: right as read, corrected (name
+  and/or size), removed (not a real room), missed (added by hand) or still pending.
+- Each project shows a plan reading summary; admins see accuracy across all projects by method.
+- "Was this quantity right?" answers are stored in `feedback` with a snapshot of the estimate.
+- **Evaluation set**: users opt in per verified project; a copy of the plan goes to the `eval`
+  GridFS bucket with the confirmed room list as ground truth. It survives project deletion until
+  the user or an admin removes it. Score the current extractor against it:
+
+  ```
+  cd backend
+  python -m app.evaluation                    # per plan and overall
+  python -m app.evaluation --export ../eval/plans   # also write files + truth.json
+  ```
+
+Deleting a project deletes its outcomes and feedback.

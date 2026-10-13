@@ -5,6 +5,7 @@ size and page limits, the file actually opens, then per-page quality and metadat
 """
 
 import io
+import itertools
 import re
 import subprocess
 import tempfile
@@ -41,7 +42,13 @@ EXTENSIONS: dict[str, FileKind] = {
     ".dwg": FileKind.DWG,
 }
 
-_DXF_UNITS = {1: LengthUnit.IN, 2: LengthUnit.FT, 4: LengthUnit.MM, 5: LengthUnit.CM, 6: LengthUnit.M}
+_DXF_UNITS = {
+    1: LengthUnit.IN,
+    2: LengthUnit.FT,
+    4: LengthUnit.MM,
+    5: LengthUnit.CM,
+    6: LengthUnit.M,
+}
 _FLOOR = re.compile(
     r"\b(basement|cellar|stilt|lower ground|upper ground|ground|first|second|third|fourth|fifth|"
     r"terrace|roof|mezzanine|\d+(?:st|nd|rd|th))\s+floor\b",
@@ -134,24 +141,34 @@ def _inspect_pdf(data: bytes, max_pages: int) -> Inspection:
         doc = pdfium.PdfDocument(data)
     except pdfium.PdfiumError as e:
         if "password" in str(e).lower():
-            raise UploadError("This PDF is password-protected. Remove the password and upload it again.") from None
-        raise UploadError("This PDF can't be opened. It may be damaged; try exporting it again.") from None
+            raise UploadError(
+                "This PDF is password-protected. Remove the password and upload it again."
+            ) from None
+        raise UploadError(
+            "This PDF can't be opened. It may be damaged; try exporting it again."
+        ) from None
 
     try:
         if len(doc) == 0:
             raise UploadError("This PDF has no pages.")
         if len(doc) > max_pages:
-            raise UploadError(f"This PDF has {len(doc)} pages; the limit is {max_pages}. Upload only the floor plan pages.")
+            raise UploadError(
+                f"This PDF has {len(doc)} pages; the limit is {max_pages}. Upload only the floor plan pages."
+            )
 
         pages: list[PageInfo] = []
         scanned = 0
         for i, page in enumerate(doc):
             w_pt, h_pt = page.get_size()
             text = page.get_textpage().get_text_range()
-            info = PageInfo(index=i, width=round(w_pt), height=round(h_pt), has_text=bool(text.strip()))
+            info = PageInfo(
+                index=i, width=round(w_pt), height=round(h_pt), has_text=bool(text.strip())
+            )
             info.floor_guess = _floor_guess(text)
 
-            info.thumbnail_png = _png(page.render(scale=THUMBNAIL_LONG_SIDE / max(w_pt, h_pt)).to_pil())
+            info.thumbnail_png = _png(
+                page.render(scale=THUMBNAIL_LONG_SIDE / max(w_pt, h_pt)).to_pil()
+            )
             if not info.has_text:
                 scanned += 1
                 scale = min(SCAN_ANALYSIS_DPI / 72, SCAN_ANALYSIS_MAX_PX / max(w_pt, h_pt))
@@ -182,13 +199,20 @@ def _inspect_image(data: bytes, content_type: str) -> Inspection:
         img = ImageOps.exif_transpose(Image.open(io.BytesIO(data)))
         img.load()
     except Image.DecompressionBombError:
-        raise UploadError("This image is too large to process. Reduce it below 100 megapixels.") from None
+        raise UploadError(
+            "This image is too large to process. Reduce it below 100 megapixels."
+        ) from None
     except (UnidentifiedImageError, OSError, SyntaxError):
         raise UploadError("This image can't be opened. It may be damaged or incomplete.") from None
 
     report = assess_image(img)
     page = PageInfo(
-        index=0, width=img.width, height=img.height, has_text=None, warnings=report.warnings, thumbnail_png=_png(img)
+        index=0,
+        width=img.width,
+        height=img.height,
+        has_text=None,
+        warnings=report.warnings,
+        thumbnail_png=_png(img),
     )
     return Inspection(FileKind.IMAGE, content_type, [page])
 
@@ -207,7 +231,7 @@ def dxf_segments(msp) -> list[Segment]:
             pts = [(p[0], p[1]) for p in e.get_points("xy")]
             if e.closed and pts:
                 pts.append(pts[0])
-            segments.extend(zip(pts, pts[1:], strict=False))
+            segments.extend(itertools.pairwise(pts))
     return segments
 
 
@@ -224,7 +248,9 @@ class DxfFrame:
     height: int
 
     @classmethod
-    def from_segments(cls, segments: list[Segment], long_side: int = THUMBNAIL_LONG_SIDE) -> "DxfFrame | None":
+    def from_segments(
+        cls, segments: list[Segment], long_side: int = THUMBNAIL_LONG_SIDE
+    ) -> "DxfFrame | None":
         """The padding scales with the size, so positions stored as fractions of the thumbnail
         line up on a larger preview too."""
         if not segments:
@@ -235,11 +261,20 @@ class DxfFrame:
         span = max(max(xs) - min_x, max(ys) - min_y) or 1.0
         pad = round(long_side / 40)  # 16 px at the 640 px thumbnail size
         k = (long_side - 2 * pad) / span
-        return cls(min_x, min_y, k, pad, round((max(xs) - min_x) * k) + 2 * pad, round((max(ys) - min_y) * k) + 2 * pad)
+        return cls(
+            min_x,
+            min_y,
+            k,
+            pad,
+            round((max(xs) - min_x) * k) + 2 * pad,
+            round((max(ys) - min_y) * k) + 2 * pad,
+        )
 
     def to_px(self, x: float, y: float) -> tuple[float, float]:
         # DXF y points up; images point down.
-        return self.pad + (x - self.min_x) * self.k, self.height - self.pad - (y - self.min_y) * self.k
+        return self.pad + (x - self.min_x) * self.k, self.height - self.pad - (
+            y - self.min_y
+        ) * self.k
 
 
 def dxf_drawing(msp, long_side: int = THUMBNAIL_LONG_SIDE) -> Image.Image | None:
@@ -268,7 +303,9 @@ def _inspect_dxf(data: bytes) -> Inspection:
     try:
         doc, _auditor = recover.read(io.BytesIO(data))
     except (DXFError, UnicodeDecodeError, ValueError):
-        raise UploadError("This DXF file can't be read. Try saving it again from your CAD software.") from None
+        raise UploadError(
+            "This DXF file can't be read. Try saving it again from your CAD software."
+        ) from None
 
     msp = doc.modelspace()
     texts = [e.dxf.text for e in msp.query("TEXT")] + [e.plain_text() for e in msp.query("MTEXT")]
@@ -285,7 +322,12 @@ def _inspect_dxf(data: bytes) -> Inspection:
 
     unit = _DXF_UNITS.get(doc.header.get("$INSUNITS", 0))
     if unit is None:
-        warnings.append(Warning("units_unknown", "The drawing doesn't specify its units. You'll be asked to confirm them."))
+        warnings.append(
+            Warning(
+                "units_unknown",
+                "The drawing doesn't specify its units. You'll be asked to confirm them.",
+            )
+        )
 
     try:
         thumb = _dxf_thumbnail(msp)
@@ -318,10 +360,14 @@ def convert_dwg(data: bytes, converter: str) -> bytes:
                 timeout=120,
             )
         except (OSError, subprocess.SubprocessError):
-            raise UploadError("This DWG file couldn't be converted. Export it as DXF or PDF and upload that.") from None
+            raise UploadError(
+                "This DWG file couldn't be converted. Export it as DXF or PDF and upload that."
+            ) from None
         converted = next(out.glob("*.dxf"), None)
         if converted is None:
-            raise UploadError("This DWG file couldn't be converted. Export it as DXF or PDF and upload that.")
+            raise UploadError(
+                "This DWG file couldn't be converted. Export it as DXF or PDF and upload that."
+            )
         return converted.read_bytes()
 
 
@@ -330,7 +376,8 @@ def inspect_upload(
 ) -> Inspection:
     if len(data) > max_bytes:
         raise UploadError(
-            f"The file is {len(data) / 1_048_576:.1f} MB; the limit is {max_bytes // 1_048_576} MB.", status_code=413
+            f"The file is {len(data) / 1_048_576:.1f} MB; the limit is {max_bytes // 1_048_576} MB.",
+            status_code=413,
         )
     kind, content_type = detect_kind(filename, data)
 

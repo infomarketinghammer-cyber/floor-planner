@@ -106,4 +106,8 @@ async def delete_project(project_id: str, user: CurrentUser) -> Response:
     async for blueprint in get_db().blueprints.find({"project_id": project["_id"]}):
         await delete_blueprint_files(blueprint)
     await get_db().blueprints.delete_many({"project_id": project["_id"]})
+    # Accuracy records and feedback belong to the project. Plans the user chose to add to the
+    # evaluation set are separate copies and stay until removed there.
+    await get_db().extraction_outcomes.delete_many({"project_id": project["_id"]})
+    await get_db().feedback.delete_many({"project_id": project["_id"]})
     return Response(status_code=status.HTTP_204_NO_CONTENT)

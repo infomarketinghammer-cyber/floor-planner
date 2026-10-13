@@ -4,6 +4,7 @@ import { api, ApiError } from '../api/client.ts'
 import type { Project } from '../api/types.ts'
 import { BlueprintsSection } from '../components/Blueprints.tsx'
 import { ExportSection } from '../components/exports/ExportSection.tsx'
+import { ExtractionSummary } from '../components/feedback/ExtractionSummary.tsx'
 import { StatusBadge } from '../components/projects.tsx'
 import { MaterialsSection } from '../components/materials/MaterialsSection.tsx'
 import { QuantitiesSection } from '../components/materials/QuantitiesSection.tsx'
@@ -88,6 +89,7 @@ export function ProjectPage() {
 
       <BlueprintsSection projectId={projectId} onChange={handleBlueprintsChange} />
       <RoomsSection projectId={projectId} review={review} />
+      {review.state && <ExtractionSummary projectId={projectId} version={review.state.version} />}
       <MaterialsSection projectId={projectId} review={review} />
       <QuantitiesSection projectId={projectId} review={review} />
       {review.state?.estimate.ready && (
