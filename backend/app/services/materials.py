@@ -98,4 +98,6 @@ def tile_ref_from_doc(doc: dict) -> TileRef:
         thickness_mm=Decimal(doc["thickness_mm"]) if doc.get("thickness_mm") else None,
         tile_type=doc.get("type"),
         material=doc.get("material"),
+        vendor=doc.get("vendor"),
+        code=doc.get("code"),
     )

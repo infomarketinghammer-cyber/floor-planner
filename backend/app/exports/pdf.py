@@ -481,3 +481,51 @@ def render_shopping_list(data: ExportData) -> bytes:
     footer = _footer(data, s)
     doc.build(story, onFirstPage=footer, onLaterPages=footer)
     return buf.getvalue()
+
+
+def render_order_list(data: ExportData) -> bytes:
+    """The shopping list grouped by vendor (PRD 4.19): one table per supplier, ready to order."""
+    s = _Styles()
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf,
+        pagesize=A4,
+        leftMargin=16 * mm,
+        rightMargin=16 * mm,
+        topMargin=16 * mm,
+        bottomMargin=18 * mm,
+        title=f"{data.project_name}: order list",
+        author="Floor Planner",
+    )
+    width = A4[0] - doc.leftMargin - doc.rightMargin
+    groups: dict[str, list] = {}
+    for line in data.shopping_lines:
+        groups.setdefault(line.vendor or "", []).append(line)
+    # Named vendors first, alphabetically; items without a vendor last.
+    order = sorted((v for v in groups if v), key=str.lower) + ([""] if "" in groups else [])
+    story: list = _header(data, s, "Order list by vendor")
+    for vendor in order:
+        rows: list[list] = [["Item", "Size", "Code", "Order", "Detail"]]
+        for line in groups[vendor]:
+            rows.append(
+                [
+                    _p(line.name, s.cell),
+                    line.size,
+                    line.code or "–",
+                    line.quantity,
+                    _p(line.detail, s.small),
+                ]
+            )
+        table = _table(
+            rows, [width * w for w in (0.3, 0.16, 0.12, 0.14, 0.28)], s, right_from=3, total_rows=0
+        )
+        table.setStyle(TableStyle([("ALIGN", (4, 0), (4, -1), "LEFT")]))
+        story.append(
+            KeepTogether(
+                [_p(vendor or "No vendor set (add one to the tile in your library)", s.h2), table]
+            )
+        )
+    story += [Spacer(0, 10), _notice_box(s, width)]
+    footer = _footer(data, s)
+    doc.build(story, onFirstPage=footer, onLaterPages=footer)
+    return buf.getvalue()

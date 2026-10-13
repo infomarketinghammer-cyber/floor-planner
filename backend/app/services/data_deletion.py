@@ -3,14 +3,16 @@
 Retention rule: uploaded plans and project data are kept until the user deletes them. Nothing is
 deleted automatically. Deleting:
 - a plan file removes the file, its converted copy, its page thumbnails and cached previews;
-- a project removes its plan files, rooms, accuracy records and feedback;
+- a project removes its plan files, rooms, accuracy records, feedback and quotes;
 - an account removes all of the above for every project, the user's own tiles, their feedback,
-  their evaluation-set copies, their email log and the account itself.
+  their evaluation-set copies, their email log, their company logo and quote numbering, and the
+  account itself.
 """
 
 from bson import ObjectId
 
 from app.api.v1.files import delete_blueprint_files
+from app.db import storage
 from app.db.mongo import get_db
 from app.evaluation import remove_from_eval_set
 
@@ -25,6 +27,7 @@ async def delete_project_data(project: dict) -> None:
     await db.blueprints.delete_many({"project_id": pid})
     await db.extraction_outcomes.delete_many({"project_id": pid})
     await db.feedback.delete_many({"project_id": pid})
+    await db.quotes.delete_many({"project_id": pid})
 
 
 async def delete_account(user_id: ObjectId) -> dict[str, int]:
@@ -43,5 +46,9 @@ async def delete_account(user_id: ObjectId) -> dict[str, int]:
     ).deleted_count
     await db.feedback.delete_many({"user_id": user_id})
     await db.email_log.delete_many({"user_id": user_id})
+    user = await db.users.find_one({"_id": user_id}, {"company_logo_id": 1})
+    if user and user.get("company_logo_id"):
+        await storage.delete(user["company_logo_id"])
+    await db.counters.delete_many({"_id": {"$regex": f"^quote:{user_id}:"}})
     await db.users.delete_one({"_id": user_id})
     return {"projects": projects, "tiles": tiles, "evaluation_copies": eval_copies}

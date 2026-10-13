@@ -62,6 +62,8 @@ class TileRef(BaseModel):
     thickness_mm: DecimalStr | None = None  # grout depth (PRD 4.15)
     tile_type: str | None = None  # floor, wall, anti_skid...: for room-type suggestions
     material: str | None = None
+    vendor: str | None = None  # for order lists by vendor (PRD 4.19)
+    code: str | None = None  # supplier SKU
 
 
 class MaterialOverride(BaseModel):

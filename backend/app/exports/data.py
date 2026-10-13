@@ -57,6 +57,8 @@ class ShopLine:
     size: str
     quantity: str  # "16 boxes", "3.15 m of roll", "3 bags"
     detail: str  # "64 tiles, 4 per box"
+    vendor: str | None = None  # who to order from (PRD 4.19)
+    code: str | None = None  # supplier SKU
 
 
 @dataclass(frozen=True)
@@ -103,6 +105,8 @@ class ExportData:
                         f"{_metres(t.tile.width_mm)} wide roll",
                         f"{_metres(t.linear_mm or Decimal(0))} of roll",
                         f"{t.rooms} room{'s' if t.rooms != 1 else ''}",
+                        t.tile.vendor,
+                        t.tile.code,
                     )
                 )
             else:
@@ -115,6 +119,8 @@ class ExportData:
                         t.tile.size_label,
                         _boxes(t.boxes),
                         f"{t.tiles_bought} {piece}, {t.tile.tiles_per_box} per box",
+                        t.tile.vendor,
+                        t.tile.code,
                     )
                 )
         x = self.estimate.extras
@@ -129,6 +135,8 @@ class ExportData:
                     w.tile.size_label,
                     _boxes(w.boxes),
                     f"{w.tiles_bought} tiles, {w.tile.tiles_per_box} per box",
+                    w.tile.vendor,
+                    w.tile.code,
                 )
             )
         if x.skirting:
@@ -150,6 +158,7 @@ class ExportData:
                         f"{x.skirting.height_mm.normalize():f} mm high",
                         qty,
                         detail,
+                        p.tile.vendor if p.tile else None,
                     )
                 )
         for i, item in enumerate(x.sundries, start=1):

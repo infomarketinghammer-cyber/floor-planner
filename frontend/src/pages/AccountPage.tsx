@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { api } from '../api/client.ts'
 import { useAuth } from '../auth/AuthContext.tsx'
+import { CompanyCard } from '../components/quotes/CompanyCard.tsx'
 import { ErrorText } from '../components/ui.tsx'
 
 type SharedPlan = Awaited<ReturnType<typeof api.users.sharedPlans>>[number]
@@ -58,6 +59,8 @@ export function AccountPage() {
         </p>
       </div>
       <ErrorText>{error}</ErrorText>
+
+      <CompanyCard />
 
       <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-5">
         <h2 className="font-semibold">Your data</h2>

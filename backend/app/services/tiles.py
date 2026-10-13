@@ -93,6 +93,7 @@ def _fields(body: TileInput, length: Decimal, width: Decimal, tiles_per_box: int
         "material": body.material.value,
         "brand": (body.brand or "").strip() or None,
         "code": (body.code or "").strip() or None,
+        "vendor": (body.vendor or "").strip() or None,
         "regions": [r.value for r in dict.fromkeys(body.regions)],
         "notes": (body.notes or "").strip() or None,
     }
@@ -135,6 +136,7 @@ def tile_out(doc: dict, user: dict) -> TileOut:
         material=doc["material"],
         brand=doc.get("brand"),
         code=doc.get("code"),
+        vendor=doc.get("vendor"),
         regions=doc.get("regions", []),
         notes=doc.get("notes"),
         typical=is_catalog and doc.get("typical", False),

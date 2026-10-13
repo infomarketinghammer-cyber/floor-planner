@@ -77,6 +77,7 @@ function emptyInput(defaultUnit: TileSizeUnit): TileInput {
     material: 'vitrified',
     brand: null,
     code: null,
+    vendor: null,
     regions: [],
     notes: null,
   }
@@ -98,6 +99,7 @@ function fromTile(tile: Tile): TileInput {
     material: tile.material,
     brand: tile.brand,
     code: tile.code,
+    vendor: tile.vendor,
     regions: tile.regions,
     notes: tile.notes,
   }
@@ -339,6 +341,15 @@ export function TileFormDialog({
               value={form.brand ?? ''}
               onChange={(e) => set('brand', e.target.value || null)}
               maxLength={80}
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Vendor (optional)">
+            <input
+              value={form.vendor ?? ''}
+              onChange={(e) => set('vendor', e.target.value || null)}
+              maxLength={80}
+              placeholder="Who you buy it from"
               className={inputClass}
             />
           </Field>

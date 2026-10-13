@@ -8,6 +8,11 @@ import type {
   RoomLayout,
   Comparison,
   ScenarioInput,
+  CompanyProfile,
+  ExtraQuoteLine,
+  Quote,
+  QuoteClient,
+  QuoteStatus,
   TileAdvice,
   SundriesSettings,
   AdminAccuracy,
@@ -280,10 +285,43 @@ export const api = {
   },
   exports: {
     options: (projectId: string) => request<{ email_enabled: boolean }>(`/projects/${projectId}/exports/options`),
-    file: (projectId: string, kind: 'report.pdf' | 'estimate.xlsx' | 'shopping-list.pdf', areaUnit: AreaUnit) =>
+    file: (
+      projectId: string,
+      kind: 'report.pdf' | 'estimate.xlsx' | 'shopping-list.pdf' | 'order-list.pdf',
+      areaUnit: AreaUnit,
+    ) =>
       requestFile(`/projects/${projectId}/exports/${kind}?area_unit=${areaUnit}`),
     emailShoppingList: (projectId: string, data: { to: string[]; message?: string; attach_pdf: boolean }) =>
       request<{ sent_to: string[] }>(`/projects/${projectId}/exports/shopping-list/email`, json('POST', data)),
+  },
+  company: {
+    get: () => request<CompanyProfile>('/users/me/company'),
+    save: (data: CompanyProfile) => request<CompanyProfile>('/users/me/company', json('PUT', data)),
+    uploadLogo: (file: File) =>
+      request<CompanyProfile>('/users/me/company/logo', { method: 'PUT', body: formData({ file }) }),
+    removeLogo: () => request<CompanyProfile>('/users/me/company/logo', json('DELETE')),
+    logoUrl: '/api/users/me/company/logo',
+  },
+  quotes: {
+    forProject: (projectId: string) => request<Quote[]>(`/projects/${projectId}/quotes`),
+    all: () => request<Quote[]>('/quotes'),
+    create: (
+      projectId: string,
+      data: {
+        client: QuoteClient
+        margin_pct: string | null
+        margin_on_labour: boolean
+        extra_lines: ExtraQuoteLine[]
+        notes: string | null
+        validity_days: number | null
+      },
+    ) => request<Quote>(`/projects/${projectId}/quotes`, json('POST', data)),
+    revise: (id: string) => request<Quote>(`/quotes/${id}/revise`, json('POST', {})),
+    setStatus: (id: string, status: QuoteStatus) => request<Quote>(`/quotes/${id}/status`, json('PATCH', { status })),
+    remove: (id: string) => request<void>(`/quotes/${id}`, json('DELETE')),
+    pdf: (id: string) => requestFile(`/quotes/${id}/pdf`),
+    email: (id: string, data: { to?: string; message?: string }) =>
+      request<Quote>(`/quotes/${id}/email`, json('POST', data)),
   },
   scenarios: {
     compare: (projectId: string) => request<Comparison>(`/projects/${projectId}/scenarios`),

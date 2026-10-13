@@ -75,6 +75,7 @@ class TileInput(BaseModel):
     material: TileMaterial = TileMaterial.VITRIFIED
     brand: str | None = Field(default=None, max_length=80)
     code: str | None = Field(default=None, max_length=60)  # supplier SKU / design code
+    vendor: str | None = Field(default=None, max_length=80)  # who you buy it from (order lists)
     regions: list[TileRegion] = Field(default_factory=list, max_length=4)
     notes: str | None = Field(default=None, max_length=500)
 
@@ -100,6 +101,7 @@ class TileOut(BaseModel):
     material: TileMaterial
     brand: str | None
     code: str | None
+    vendor: str | None
     regions: list[TileRegion]
     notes: str | None
     typical: bool  # catalogue presets: pack counts are typical, check with the supplier

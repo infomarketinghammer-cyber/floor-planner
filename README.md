@@ -346,3 +346,19 @@ Deleting a project deletes its outcomes and feedback.
   reasons are written out in plain language.
 - **Suggested option**: the lowest-waste tile for the project, added with one click.
 - "Use this" applies an option to the project (undoable).
+
+## Quotations (PRD 4.19)
+
+- **Company details** (Account page): name, logo (PNG/JPEG, stored encrypted), address, contact,
+  tax ID, terms, validity, default margin and quote number prefix.
+- **Quotes** from a fully priced estimate: materials (floor, walls, skirting, sundries) marked up
+  by the margin; delivery and labour pass through unless chosen; extra lines per quote; tax from
+  the cost settings. Every line multiplies out (quantity × unit price). A quote is a frozen
+  snapshot; "Revise" makes a new version from the current project and keeps the old one.
+- **Status**: draft, sent, approved, rejected. Only drafts can be deleted. Numbers run per
+  contractor per year (`Q-2026-0001`).
+- **Client PDF** with the logo and details, never showing cost or margin; **email** it to the
+  client through Resend (marks it sent).
+- **Order list by vendor**: tiles have a vendor (and code); the order list PDF groups the
+  shopping list by vendor.
+- Not built: vendor catalogues with live pricing, which need supplier systems to connect to.

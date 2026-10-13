@@ -110,6 +110,8 @@ export interface TileRef {
   thickness_mm?: string | null
   tile_type?: string | null
   material?: string | null
+  vendor?: string | null
+  code?: string | null
 }
 
 /** A room's own settings; null = use the project default. */
@@ -293,6 +295,7 @@ export interface Tile {
   material: TileMaterial
   brand: string | null
   code: string | null
+  vendor: string | null
   regions: TileRegion[]
   notes: string | null
   typical: boolean
@@ -315,6 +318,7 @@ export interface TileInput {
   material: TileMaterial
   brand: string | null
   code: string | null
+  vendor: string | null
   regions: TileRegion[]
   notes: string | null
 }
@@ -760,4 +764,79 @@ export interface ScenarioInput {
   breakage_pct: string | null
   price: Price | null
   every_room: boolean
+}
+
+// --- Quotations (PRD 4.19) -------------------------------------------------------------------------
+export interface CompanyProfile {
+  name: string
+  address: string
+  phone: string
+  email: string
+  website: string
+  tax_id_label: string
+  tax_id: string
+  terms: string
+  validity_days: number
+  default_margin_pct: string
+  quote_prefix: string
+  has_logo: boolean
+}
+
+export type QuoteStatus = 'draft' | 'sent' | 'approved' | 'rejected'
+
+export interface QuoteClient {
+  name: string
+  email: string | null
+  phone: string
+  address: string
+}
+
+export interface QuoteLine {
+  kind: 'material' | 'extra' | 'labour' | 'delivery' | 'other'
+  description: string
+  quantity: string
+  unit: string
+  unit_price: string
+  amount: string
+  cost: string
+  taxable: boolean
+}
+
+export interface ExtraQuoteLine {
+  kind: 'labour' | 'delivery' | 'other'
+  description: string
+  quantity: string
+  unit: string
+  rate: string
+  taxable: boolean
+}
+
+export interface Quote {
+  id: string
+  project_id: string
+  project_name: string
+  number: string
+  version: number
+  latest: boolean
+  status: QuoteStatus
+  client: QuoteClient
+  margin_pct: string
+  margin_on_labour: boolean
+  extra_lines: ExtraQuoteLine[]
+  lines: QuoteLine[]
+  subtotal: string
+  tax_label: string
+  tax_pct: string
+  tax_amount: string
+  total: string
+  cost_total: string
+  margin_amount: string
+  currency: string
+  locale: string
+  notes: string | null
+  terms: string
+  valid_until: string
+  created_at: string
+  sent_at: string | null
+  decided_at: string | null
 }

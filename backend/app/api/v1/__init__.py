@@ -10,6 +10,7 @@ from app.api.v1 import (
     materials,
     projects,
     public,
+    quotes,
     rooms,
     scenarios,
     tiles,
@@ -26,6 +27,7 @@ api_router.include_router(cost.router)
 api_router.include_router(exports.router)
 api_router.include_router(feedback.router)
 api_router.include_router(scenarios.router)
+api_router.include_router(quotes.router)
 api_router.include_router(tiles.router)
 api_router.include_router(users.router)
 api_router.include_router(admin.router)

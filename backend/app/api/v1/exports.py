@@ -21,7 +21,7 @@ from app.db.mongo import get_db
 from app.exports.data import ExportData, NotReady, export_data
 from app.exports.excel import render_workbook
 from app.exports.formatting import AreaUnit
-from app.exports.pdf import render_report, render_shopping_list
+from app.exports.pdf import render_order_list, render_report, render_shopping_list
 from app.exports.shopping import shopping_html, shopping_text
 from app.schemas.project import ProjectStatus
 from app.services.email import EmailError, EmailNotConfigured, email_enabled, send_email
@@ -129,6 +129,17 @@ async def shopping_list_pdf(
     content = await asyncio.to_thread(render_shopping_list, data)
     await _mark_exported(project)
     return _download(content, PDF, _filename(data.project_name, "shopping list.pdf"))
+
+
+@router.get("/order-list.pdf")
+async def order_list_pdf(
+    project_id: str, user: CurrentUser, area_unit: AreaQuery = None
+) -> Response:
+    """The shopping list grouped by vendor (PRD 4.19)."""
+    project, data = await _data(user, project_id, area_unit)
+    content = await asyncio.to_thread(render_order_list, data)
+    await _mark_exported(project)
+    return _download(content, PDF, _filename(data.project_name, "order list.pdf"))
 
 
 @router.post("/shopping-list/email", response_model=ShoppingEmailOut)

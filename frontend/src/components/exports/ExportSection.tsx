@@ -5,12 +5,13 @@ import { useAreaUnit } from '../../lib/format.ts'
 import { shoppingLines, shoppingText } from '../../lib/shopping.ts'
 import { Button, ErrorText } from '../ui.tsx'
 
-type FileKind = 'report.pdf' | 'estimate.xlsx' | 'shopping-list.pdf'
+type FileKind = 'report.pdf' | 'estimate.xlsx' | 'shopping-list.pdf' | 'order-list.pdf'
 
 const FILES: { kind: FileKind; label: string; note: string }[] = [
   { kind: 'report.pdf', label: 'PDF report', note: 'Rooms table, totals, costs and assumptions' },
   { kind: 'estimate.xlsx', label: 'Excel workbook', note: 'Live formulas: edit a number and totals update' },
   { kind: 'shopping-list.pdf', label: 'Shopping list PDF', note: 'Tile types and boxes only' },
+  { kind: 'order-list.pdf', label: 'Order list by vendor', note: 'One list per supplier, with codes' },
 ]
 
 function save({ blob, filename }: { blob: Blob; filename: string }) {
@@ -74,7 +75,7 @@ export function ExportSection({
       </div>
       <ErrorText>{error}</ErrorText>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {FILES.map((f) => (
           <button
             key={f.kind}
