@@ -15,6 +15,7 @@ import {
 } from './MaterialDialogs.tsx'
 import { ExtrasSettingsCard, SuggestionsPanel, WallsDialog, wallsSummary, type WallsPreset } from './ExtrasDialogs.tsx'
 import { TilePicker } from './TilePicker.tsx'
+import { TileUpdatesBanner } from './TileUpdatesBanner.tsx'
 
 const MM2_PER_SQFT = 92_903.04
 
@@ -83,6 +84,8 @@ export function MaterialsSection({ projectId, review }: { projectId: string; rev
         </div>
         <MaterialsStatus state={state} />
       </div>
+
+      <TileUpdatesBanner projectId={projectId} review={review} />
 
       <DefaultsCard
         key={JSON.stringify(state.default_material)}

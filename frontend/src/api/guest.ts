@@ -169,6 +169,12 @@ async function local(method: string, path: string): Promise<GuestResult | null> 
   return null
 }
 
+/** A project kept in this browser as a backup file (to move it into an account). */
+export async function localBackupFile(projectId: string): Promise<File> {
+  const result = await local('GET', `/projects/${projectId}/backup`)
+  return new File([result!.blob!], result!.filename ?? 'backup.floorplan.json', { type: 'application/json' })
+}
+
 /** A backup file becomes a new project in this browser, with new ids throughout. */
 export async function importBackupLocally(file: File): Promise<GuestResult> {
   let data: { format?: string; version?: number; project?: Record<string, unknown>; blueprints?: Record<string, unknown>[]; files?: Record<string, string> }

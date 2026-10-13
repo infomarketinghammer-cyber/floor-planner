@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router'
 import { api } from '../api/client.ts'
 import type { Project } from '../api/types.ts'
 import { useAuth } from '../auth/AuthContext.tsx'
+import { MoveLocalProjects } from '../components/MoveLocalProjects.tsx'
 import { NewProjectDialog, StatusBadge } from '../components/projects.tsx'
 import { Button, ErrorText } from '../components/ui.tsx'
 import {
@@ -40,7 +41,7 @@ function latestBy(projects: Project[], field: 'updated_at' | 'last_exported_at')
 }
 
 export function HomePage() {
-  const { user } = useAuth()
+  const { user, isGuest } = useAuth()
   const navigate = useNavigate()
   const [projects, setProjects] = useState<Project[] | null>(null)
   const [error, setError] = useState('')
@@ -141,6 +142,7 @@ export function HomePage() {
         </div>
       </div>
 
+      {!isGuest && <MoveLocalProjects onMoved={(p) => setProjects((list) => [p, ...(list ?? [])])} />}
       <ErrorText>{error}</ErrorText>
 
       {loading && <p className="text-sm text-slate-500">Loading projects…</p>}

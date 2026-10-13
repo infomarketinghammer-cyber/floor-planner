@@ -840,3 +840,13 @@ export interface Quote {
   sent_at: string | null
   decided_at: string | null
 }
+
+// --- Library tile changes (PRD 4.12) -----------------------------------------------------------
+export interface TileUpdate {
+  tile_id: string
+  name: string
+  size_label: string
+  available: boolean // false: removed from the library
+  changes: { field: string; old: string | null; new: string | null }[]
+  used_in: string[]
+}

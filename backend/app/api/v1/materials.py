@@ -4,6 +4,7 @@ import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
 
+from bson import ObjectId
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 from pymongo import ReturnDocument
@@ -30,11 +31,12 @@ from app.schemas.project import RoomOrigin, RoomPart, RoomsOut
 from app.services.estimate import build_estimate, room_parts
 from app.services.extras import extras_settings
 from app.services.history import record_version
-from app.services.materials import effective, load_tile_ref, project_default
+from app.services.materials import effective, load_tile_ref, project_default, tile_ref_from_doc
 from app.services.projects import get_project_or_404
 from app.services.review import review_state
 from app.services.suggestions import SuggestionOut, suggestions
 from app.services.tile_advice import TileAdviceOut, advise
+from app.services.tile_updates import TileUpdateOut, apply_updates, find_updates
 
 router = APIRouter(prefix="/projects/{project_id}", tags=["materials"])
 
@@ -405,3 +407,63 @@ async def tile_advice(project_id: str, user: CurrentUser) -> TileAdviceOut:
         )
     ]
     return advise(state.rooms, default, estimate, library)
+
+
+# --- Library tile changes (PRD 4.12) ------------------------------------------------------------
+
+
+class TileUpdatesIn(BaseModel):
+    tile_ids: list[str] = Field(min_length=1, max_length=50)
+    version: int
+
+
+async def _library_by_id(project: dict, user: dict, ids: list[str]) -> dict[str, dict]:
+    oids = [ObjectId(i) for i in ids if ObjectId.is_valid(i)]
+    docs = get_db().tiles.find(
+        {
+            "_id": {"$in": oids},
+            "$or": [
+                {"scope": "catalog"},
+                {"owner_id": {"$in": [user["_id"], project["owner_id"]]}},
+            ],
+        }
+    )
+    return {str(d["_id"]): d async for d in docs}
+
+
+def _used_tile_ids(project: dict) -> list[str]:
+    state = review_state(project)
+    default, extras = project_default(project), extras_settings(project)
+    ids = {t.id for t in (default.tile, extras.wall_tile) if t}
+    for r in state.rooms:
+        ids |= {t.id for t in (r.material.tile, r.walls.tile if r.walls else None) if t}
+    return sorted(ids)
+
+
+@router.get("/tile-updates", response_model=list[TileUpdateOut])
+async def tile_updates(project_id: str, user: CurrentUser) -> list[TileUpdateOut]:
+    """Tiles that changed in the library since this project chose them."""
+    project = await get_project_or_404(user, project_id)
+    library = await _library_by_id(project, user, _used_tile_ids(project))
+    state = review_state(project)
+    return find_updates(state.rooms, project_default(project), extras_settings(project), library)
+
+
+@router.post("/tile-updates/apply", response_model=RoomsOut)
+async def apply_tile_updates(project_id: str, body: TileUpdatesIn, user: CurrentUser) -> RoomsOut:
+    """Use the library's current version of these tiles everywhere in the project, and
+    recalculate. Undoable."""
+    project = await get_project_or_404(user, project_id)
+    _check_version(project, body.version)
+    library = await _library_by_id(project, user, body.tile_ids)
+    fresh = {i: tile_ref_from_doc(d) for i, d in library.items() if not d.get("archived")}
+    if not fresh:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Those tiles are no longer in the library.")
+    rooms, default, extras = apply_updates(
+        _rooms(project), project_default(project), extras_settings(project), fresh
+    )
+    return await _replace_rooms(
+        project,
+        rooms,
+        {"default_material": default.model_dump(), "extras_settings": extras.model_dump()},
+    )

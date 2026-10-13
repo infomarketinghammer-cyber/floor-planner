@@ -38,6 +38,7 @@ LABELS: dict[str, str] = {
     "add_scenario": "Added an option to compare",
     "create_quote": "Made a quote",
     "revise_quote": "Revised a quote",
+    "apply_tile_updates": "Updated tiles from the library",
 }
 
 

@@ -14,6 +14,7 @@ import type {
   QuoteClient,
   QuoteStatus,
   TileAdvice,
+  TileUpdate,
   SundriesSettings,
   AdminAccuracy,
   EvalEntry,
@@ -314,6 +315,9 @@ export const api = {
       })),
     roomLayout: (projectId: string, roomId: string) => request<RoomLayout>(`/projects/${projectId}/rooms/${roomId}/layout`),
     tileAdvice: (projectId: string) => request<TileAdvice>(`/projects/${projectId}/tile-advice`),
+    tileUpdates: (projectId: string) => request<TileUpdate[]>(`/projects/${projectId}/tile-updates`),
+    applyTileUpdates: (projectId: string, tileIds: string[], version: number) =>
+      request<RoomsState>(`/projects/${projectId}/tile-updates/apply`, json('POST', { tile_ids: tileIds, version })),
     /** Bulk change for selected rooms: set fields, reset fields to the default, and/or skip. */
     setRooms: (
       projectId: string,

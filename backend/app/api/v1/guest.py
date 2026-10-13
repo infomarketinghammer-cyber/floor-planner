@@ -38,7 +38,8 @@ ALLOWED: list[tuple[str, str]] = [
     ("GET|POST|PUT|PATCH|DELETE", rf"/projects/{OID}/files(/.*)?"),
     ("PUT", rf"/projects/{OID}/materials/default"),
     ("PUT", rf"/projects/{OID}/(extras|cost)/settings"),
-    ("GET", rf"/projects/{OID}/(suggestions|tile-advice)"),
+    ("GET", rf"/projects/{OID}/(suggestions|tile-advice|tile-updates)"),
+    ("POST", rf"/projects/{OID}/tile-updates/apply"),
     (
         "GET",
         rf"/projects/{OID}/exports/(report\.pdf|estimate\.xlsx|shopping-list\.pdf|order-list\.pdf|options)",
