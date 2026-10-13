@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 
 from PIL import Image, ImageOps
 
+from app.core.guest import AI_SIGN_IN, is_guest
 from app.engine.units import LengthUnit
 from app.extraction import vision
 from app.extraction.models import ExtractedRoom
@@ -33,6 +34,9 @@ class PageResult:
 
 async def _vision_page(img: Image.Image, plan_unit: LengthUnit | None, result: PageResult) -> None:
     result.method = "vision"
+    if is_guest():  # AI reading costs money per page: signed-in users only
+        result.error = AI_SIGN_IN
+        return
     try:
         async with _vision_slots:
             result.rooms = await vision.read_rooms(img, plan_unit)

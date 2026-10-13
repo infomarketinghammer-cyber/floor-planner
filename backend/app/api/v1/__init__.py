@@ -7,6 +7,7 @@ from app.api.v1 import (
     exports,
     feedback,
     files,
+    guest,
     materials,
     projects,
     public,
@@ -32,3 +33,4 @@ api_router.include_router(tiles.router)
 api_router.include_router(users.router)
 api_router.include_router(admin.router)
 api_router.include_router(public.router)
+api_router.include_router(guest.router)

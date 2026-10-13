@@ -6,6 +6,7 @@ from bson.errors import InvalidId
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from app.core.guest import guest_user
 from app.core.security import decode_access_token
 from app.db.mongo import get_db
 from app.schemas.user import Role
@@ -23,6 +24,9 @@ def parse_object_id(value: str) -> ObjectId:
 async def get_current_user(
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
 ) -> dict:
+    guest = guest_user()  # set only by the guest dispatcher, for its internal call
+    if guest is not None:
+        return guest
     unauthorized = HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated")
     if credentials is None:
         raise unauthorized

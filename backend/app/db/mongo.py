@@ -2,6 +2,7 @@ from pymongo import ASCENDING, AsyncMongoClient
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.core.config import get_settings
+from app.core.guest import guest_db
 
 _client: AsyncMongoClient | None = None
 
@@ -22,6 +23,9 @@ async def close() -> None:
 
 
 def get_db() -> AsyncDatabase:
+    sandbox = guest_db()  # a guest request runs against its own in-memory database
+    if sandbox is not None:
+        return sandbox
     if _client is None:
         raise RuntimeError("MongoDB client is not connected")
     return _client[get_settings().mongodb_db]

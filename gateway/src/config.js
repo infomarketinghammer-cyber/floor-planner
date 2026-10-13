@@ -14,4 +14,6 @@ export const config = {
   cookieName: 'fp_session',
   // Keep in sync with backend MAX_UPLOAD_MB; FastAPI enforces the exact limit.
   maxUploadMb: Number(process.env.MAX_UPLOAD_MB ?? 25),
+  // Guest calls carry the whole project, plan files included when needed.
+  maxGuestCallMb: Number(process.env.MAX_GUEST_CALL_MB ?? 80),
 };

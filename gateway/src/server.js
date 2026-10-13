@@ -54,6 +54,24 @@ app.use(
   }),
 );
 
+// --- Guest mode (no login): the browser sends its project with each call; nothing is stored.
+// Projects with plan files are large, so the limit is higher than for uploads.
+app.post('/api/guest/call', (req, res, next) => {
+  const length = Number(req.headers['content-length'] ?? 0);
+  if (length > config.maxGuestCallMb * 1_048_576) {
+    return res.status(413).json({ detail: `This project is too large to work on without an account (over ${config.maxGuestCallMb} MB). Sign in to keep working.` });
+  }
+  return next();
+});
+app.use(
+  '/api/guest',
+  createProxyMiddleware({
+    target: config.fastapiUrl,
+    xfwd: true, // FastAPI rate-limits guests by client IP
+    pathRewrite: (reqPath) => `/api/v1/guest${reqPath}`,
+  }),
+);
+
 // --- Everything under /api is authenticated and proxied to FastAPI as /api/v1/*
 app.use(
   '/api',

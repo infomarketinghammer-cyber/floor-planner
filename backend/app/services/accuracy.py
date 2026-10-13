@@ -15,6 +15,7 @@ from bson import ObjectId
 from pydantic import BaseModel
 from pymongo import UpdateOne
 
+from app.core.guest import is_guest
 from app.db.mongo import get_db
 from app.schemas.material import DecimalStr
 from app.schemas.project import Room, RoomOrigin
@@ -111,6 +112,8 @@ def build_outcomes(rooms: list[Room]) -> list[dict]:
 
 async def sync_outcomes(project: dict) -> None:
     """Write the project's current outcomes; rooms that are gone are marked deleted."""
+    if is_guest():  # accuracy tracking needs an account (feedback, evaluation set)
+        return
     rooms = [Room.model_validate(r) for r in project.get("rooms", [])]
     outcomes = build_outcomes(rooms)
     coll = get_db().extraction_outcomes

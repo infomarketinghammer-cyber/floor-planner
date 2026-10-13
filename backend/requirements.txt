@@ -15,3 +15,6 @@ anthropic>=1.12
 reportlab>=4.2
 httpx>=0.27
 cryptography>=43
+# Guest mode: an in-memory database per guest request (app/api/v1/guest.py)
+mongomock>=4.3
+mongomock-motor>=0.0.36
