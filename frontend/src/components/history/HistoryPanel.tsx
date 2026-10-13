@@ -3,6 +3,7 @@ import { api } from '../../api/client.ts'
 import { formatMoney, type MoneyFormat } from '../../lib/money.ts'
 import type { RoomsReview } from '../rooms/useRoomsReview.ts'
 import { ErrorText } from '../ui.tsx'
+import { useProjectRole } from '../../lib/projectRole.ts'
 
 type Version = Awaited<ReturnType<typeof api.history.versions>>[number]
 
@@ -29,6 +30,7 @@ export function HistoryPanel({ projectId, review }: { projectId: string; review:
   const [versions, setVersions] = useState<Version[] | null>(null)
   const [error, setError] = useState('')
   const money: MoneyFormat | null = state ? state.cost_settings : null
+  const { canSeeCosts } = useProjectRole()
 
   async function load() {
     setError('')
@@ -56,6 +58,7 @@ export function HistoryPanel({ projectId, review }: { projectId: string; review:
       </summary>
       <div className="space-y-4 px-5 pb-5 text-sm">
         <ErrorText>{error}</ErrorText>
+        {canSeeCosts && (
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
@@ -75,6 +78,7 @@ export function HistoryPanel({ projectId, review }: { projectId: string; review:
             another browser.
           </span>
         </div>
+        )}
         {versions === null ? (
           <p className="text-slate-500">Loading…</p>
         ) : versions.length === 0 ? (

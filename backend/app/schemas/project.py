@@ -182,6 +182,11 @@ class ProjectOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     last_exported_at: datetime | None = None
+    # Collaboration (PRD 4.18): the viewer's role on this project, and its sharing state.
+    my_role: Literal["owner", "contractor", "designer", "homeowner"] = "owner"
+    team_id: str | None = None
+    shared: bool = False  # a read-only link is active
+    approval_requested_at: datetime | None = None
 
 
 # --- Review (PRD 4.3) ------------------------------------------------------------------

@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends
 from app.api.v1 import (
     admin,
     auth,
+    collab,
     cost,
     exports,
     feedback,
@@ -15,6 +16,7 @@ from app.api.v1 import (
     quotes,
     rooms,
     scenarios,
+    teams,
     tiles,
     users,
 )
@@ -33,6 +35,8 @@ api_router.include_router(exports.router)
 api_router.include_router(feedback.router)
 api_router.include_router(scenarios.router)
 api_router.include_router(quotes.router)
+api_router.include_router(collab.router)
+api_router.include_router(teams.router)
 api_router.include_router(tiles.router)
 api_router.include_router(users.router)
 api_router.include_router(admin.router)

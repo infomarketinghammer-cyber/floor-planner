@@ -2,10 +2,12 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router'
 import { api, ApiError } from '../api/client.ts'
 import { useAuth } from '../auth/AuthContext.tsx'
-import type { Project } from '../api/types.ts'
+import type { Project, ProjectRole } from '../api/types.ts'
 import { BlueprintsSection } from '../components/Blueprints.tsx'
 import { ExportSection } from '../components/exports/ExportSection.tsx'
 import { HistoryPanel } from '../components/history/HistoryPanel.tsx'
+import { CollabPanel } from '../components/collab/CollabPanel.tsx'
+import { ProjectRoleContext } from '../lib/projectRole.ts'
 import { ExtractionSummary } from '../components/feedback/ExtractionSummary.tsx'
 import { ScenariosSection } from '../components/scenarios/ScenariosSection.tsx'
 import { QuotesSection } from '../components/quotes/QuotesSection.tsx'
@@ -72,6 +74,7 @@ export function ProjectPage() {
   if (!project) return error ? <ErrorText>{error}</ErrorText> : <p className="text-sm text-slate-500">Loading…</p>
 
   const reasons = attentionReasons(project)
+  const role: ProjectRole = project.my_role ?? 'owner'
 
   return (
     <div className="space-y-8">
@@ -82,6 +85,11 @@ export function ProjectPage() {
         <div className="mt-1 flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-semibold">{project.name}</h1>
           <StatusBadge status={project.status} />
+          {role !== 'owner' && (
+            <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-600">
+              You: {{ contractor: 'contractor', designer: 'designer', homeowner: 'client' }[role]}
+            </span>
+          )}
         </div>
         <p className="text-sm text-slate-500">
           {plural(project.room_count, 'room')} · {formatArea(projectArea(project, areaUnit), areaUnit)}
@@ -92,19 +100,41 @@ export function ProjectPage() {
         <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">{reasons.join(' · ')}</p>
       )}
 
-      <BlueprintsSection projectId={projectId} onChange={handleBlueprintsChange} />
-      <RoomsSection projectId={projectId} review={review} />
-      {review.state && !isGuest && <ExtractionSummary projectId={projectId} version={review.state.version} />}
-      <MaterialsSection projectId={projectId} review={review} />
+      <ProjectRoleContext value={role}>
+      {role === 'homeowner' ? (
+        // A client's view: the results, to review, comment on and approve (PRD 4.18).
+        <p className="rounded-md bg-brand-50 px-3 py-2 text-sm text-slate-700">
+          You've been invited to review this estimate. You can see the results, comment, and approve it.
+        </p>
+      ) : (
+        <>
+          <BlueprintsSection projectId={projectId} onChange={handleBlueprintsChange} />
+          <RoomsSection projectId={projectId} review={review} />
+          {review.state && !isGuest && <ExtractionSummary projectId={projectId} version={review.state.version} />}
+          <MaterialsSection projectId={projectId} review={review} />
+        </>
+      )}
       <QuantitiesSection projectId={projectId} review={review} />
-      {review.state?.estimate.ready && <ScenariosSection projectId={projectId} review={review} />}
-      {review.state?.estimate.ready && !isGuest && <QuotesSection projectId={projectId} version={review.state.version} />}
+      {review.state?.estimate.ready && role !== 'homeowner' && <ScenariosSection projectId={projectId} review={review} />}
+      {review.state?.estimate.ready && !isGuest && (role === 'owner' || role === 'contractor') && (
+        <QuotesSection projectId={projectId} version={review.state.version} />
+      )}
       {review.state?.estimate.ready && (
         <ExportSection projectId={projectId} estimate={review.state.estimate} onExported={refreshProject} />
       )}
+      {!isGuest && review.state && (
+        <CollabPanel
+          projectId={projectId}
+          role={role}
+          rooms={review.state.rooms.map((r) => ({ id: r.id, name: r.name }))}
+          version={review.state.version}
+        />
+      )}
 
-      <HistoryPanel projectId={projectId} review={review} />
+      {role !== 'homeowner' && <HistoryPanel projectId={projectId} review={review} />}
+      </ProjectRoleContext>
 
+      {role !== 'homeowner' && (
       <details className="group max-w-xl rounded-xl border border-slate-200 bg-white">
         <summary className="cursor-pointer list-none px-6 py-4 font-semibold">
           Project details <span className="text-sm font-normal text-slate-500">(name and notes)</span>
@@ -128,6 +158,7 @@ export function ProjectPage() {
           </div>
         </form>
       </details>
+      )}
     </div>
   )
 }

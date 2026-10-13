@@ -31,6 +31,7 @@ from app.schemas.project import (
     RoomsRestore,
     RoomUpdate,
 )
+from app.services.access import can_see_costs
 from app.services.cost import build_cost, cost_settings
 from app.services.estimate import build_estimate
 from app.services.extras import extras_settings
@@ -88,7 +89,7 @@ def rooms_out(doc: dict) -> RoomsOut:
         estimate=estimate,
         cost_settings=settings,
         extras_settings=extras,
-        cost=build_cost(state, default, estimate, settings, extras),
+        cost=build_cost(state, default, estimate, settings, extras) if can_see_costs() else None,
         plan_unit=PlanUnitOut(
             unit=pu.unit,
             confirmed=pu.confirmed,

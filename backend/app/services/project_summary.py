@@ -55,7 +55,7 @@ def _display(area: Decimal) -> float:
     return float(area.quantize(_TWO_PLACES, rounding=ROUND_HALF_UP))
 
 
-def project_out(doc: dict) -> ProjectOut:
+def project_out(doc: dict, my_role: str | None = "owner") -> ProjectOut:
     rooms = [Room.model_validate(r) for r in doc.get("rooms", [])]
     summary = summarize(rooms, project_default(doc))
     unit_unconfirmed = plan_unit_state(doc, rooms).needs_confirmation
@@ -76,4 +76,8 @@ def project_out(doc: dict) -> ProjectOut:
         created_at=doc["created_at"],
         updated_at=doc["updated_at"],
         last_exported_at=doc.get("last_exported_at"),
+        my_role=my_role or "owner",
+        team_id=str(doc["team_id"]) if doc.get("team_id") else None,
+        shared=bool((doc.get("share") or {}).get("token")),
+        approval_requested_at=doc.get("approval_requested_at"),
     )

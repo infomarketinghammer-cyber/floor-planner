@@ -48,3 +48,12 @@ async def _ensure_indexes() -> None:
     )
     await db.feedback.create_index([("project_id", ASCENDING), ("created_at", ASCENDING)])
     await db.eval_plans.create_index([("project_id", ASCENDING)])
+    # Collaboration (PRD 4.18)
+    await db.teams.create_index([("members.user_id", ASCENDING)])
+    await db.teams.create_index([("invites.email", ASCENDING)])
+    await db.projects.create_index([("team_id", ASCENDING)])
+    await db.projects.create_index([("members.user_id", ASCENDING)])
+    await db.projects.create_index([("invites.email", ASCENDING)])
+    await db.projects.create_index([("share.token", ASCENDING)], sparse=True)
+    for name in ("project_versions", "comments", "approvals", "activity"):
+        await db[name].create_index([("project_id", ASCENDING)])

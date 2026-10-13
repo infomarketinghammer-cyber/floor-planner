@@ -97,7 +97,7 @@ def blueprint_file_ids(bp: dict) -> list[ObjectId]:
 @router.get("/projects/{project_id}/backup")
 async def download_backup(project_id: str, user: CurrentUser) -> Response:
     """The project, its plan files and settings, as one file to keep or move."""
-    project = await get_project_or_404(user, project_id)
+    project = await get_project_or_404(user, project_id, "cost")
     blueprints = [b async for b in get_db().blueprints.find({"project_id": project["_id"]})]
     files = {}
     for bp in blueprints:

@@ -24,6 +24,7 @@ from app.exports.formatting import AreaUnit
 from app.exports.pdf import render_order_list, render_report, render_shopping_list
 from app.exports.shopping import shopping_html, shopping_text
 from app.schemas.project import ProjectStatus
+from app.services.access import can_see_costs
 from app.services.email import EmailError, EmailNotConfigured, email_enabled, send_email
 from app.services.projects import get_project_or_404
 
@@ -59,7 +60,7 @@ def _area_unit(user: dict, requested: AreaUnit | None) -> AreaUnit:
 async def _data(user: dict, project_id: str, area_unit: AreaUnit | None) -> tuple[dict, ExportData]:
     project = await get_project_or_404(user, project_id)
     try:
-        return project, export_data(project, _area_unit(user, area_unit))
+        return project, export_data(project, _area_unit(user, area_unit), can_see_costs())
     except NotReady as e:
         raise HTTPException(
             status.HTTP_409_CONFLICT, "Nothing to export yet. " + " ".join(e.blockers)

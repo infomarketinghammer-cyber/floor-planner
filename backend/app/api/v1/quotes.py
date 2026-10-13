@@ -27,12 +27,13 @@ from app.schemas.quote import (
     QuoteStatus,
     QuoteStatusIn,
 )
+from app.services.access import project_role, user_team_ids, visible_projects_query
 from app.services.cost import build_cost, cost_settings
 from app.services.email import EmailError, email_enabled, send_email
 from app.services.estimate import build_estimate
 from app.services.extras import extras_settings
 from app.services.materials import project_default
-from app.services.projects import get_project_or_404, project_scope
+from app.services.projects import get_project_or_404
 from app.services.quotes import NotQuotable, quote_lines, totals
 from app.services.review import review_state
 
@@ -169,13 +170,13 @@ async def _quote_or_404(user: dict, quote_id: str) -> tuple[dict, dict]:
     doc = await get_db().quotes.find_one({"_id": oid})
     if doc is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Quote not found")
-    project = await get_project_or_404(user, str(doc["project_id"]))
+    project = await get_project_or_404(user, str(doc["project_id"]), "cost")
     return doc, project
 
 
 @router.get("/projects/{project_id}/quotes", response_model=list[Quote])
 async def project_quotes(project_id: str, user: CurrentUser) -> list[Quote]:
-    project = await get_project_or_404(user, project_id)
+    project = await get_project_or_404(user, project_id, "cost")
     cursor = get_db().quotes.find({"project_id": project["_id"]}).sort("created_at", DESCENDING)
     return [_quote(d) async for d in cursor]
 
@@ -185,7 +186,7 @@ async def project_quotes(project_id: str, user: CurrentUser) -> list[Quote]:
 )
 async def create_quote(project_id: str, body: QuoteIn, user: CurrentUser) -> Quote:
     """A new quote (version 1, a new number) from the project as it is now."""
-    project = await get_project_or_404(user, project_id)
+    project = await get_project_or_404(user, project_id, "cost")
     owner = await _owner(project)
     company = company_of(owner)
     margin = body.margin_pct if body.margin_pct is not None else company.default_margin_pct
@@ -377,7 +378,12 @@ async def email_quote(quote_id: str, body: QuoteEmailIn, user: CurrentUser) -> Q
 @router.get("/quotes", response_model=list[Quote])
 async def my_quotes(user: CurrentUser) -> list[Quote]:
     """Latest version of every quote the user can see (for the business dashboard)."""
-    project_ids = [p["_id"] async for p in get_db().projects.find(project_scope(user), {"_id": 1})]
+    teams = await user_team_ids(user)
+    project_ids = [
+        p["_id"]
+        async for p in get_db().projects.find(await visible_projects_query(user))
+        if await project_role(user, p, teams) in ("owner", "contractor")
+    ]
     cursor = (
         get_db()
         .quotes.find({"project_id": {"$in": project_ids}, "latest": True})

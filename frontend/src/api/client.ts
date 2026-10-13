@@ -15,6 +15,13 @@ import type {
   QuoteStatus,
   TileAdvice,
   TileUpdate,
+  ActivityItem,
+  Approval,
+  Comment,
+  People,
+  ShareLink,
+  SharedProject,
+  Team,
   SundriesSettings,
   AdminAccuracy,
   EvalEntry,
@@ -423,6 +430,46 @@ export const api = {
     /** Make an option the project's setup. Undoable. */
     apply: (projectId: string, id: string, version: number) =>
       request<RoomsState>(`/projects/${projectId}/scenarios/${id}/apply?version=${version}`, json('POST')),
+  },
+  collab: {
+    people: (projectId: string) => request<People>(`/projects/${projectId}/people`),
+    invite: (projectId: string, email: string, role: string) =>
+      request<People>(`/projects/${projectId}/members`, json('POST', { email, role })),
+    removeMember: (projectId: string, userId: string) =>
+      request<void>(`/projects/${projectId}/members/${userId}`, json('DELETE')),
+    cancelInvite: (projectId: string, email: string) =>
+      request<void>(`/projects/${projectId}/invites/${encodeURIComponent(email)}`, json('DELETE')),
+    setTeam: (projectId: string, teamId: string | null) =>
+      request<void>(`/projects/${projectId}/team`, json('PUT', { team_id: teamId })),
+    comments: (projectId: string) => request<Comment[]>(`/projects/${projectId}/comments`),
+    addComment: (projectId: string, text: string, roomId: string | null) =>
+      request<Comment>(`/projects/${projectId}/comments`, json('POST', { text, room_id: roomId })),
+    resolveComment: (projectId: string, id: string, resolved: boolean) =>
+      request<Comment>(`/projects/${projectId}/comments/${id}`, json('PATCH', { resolved })),
+    deleteComment: (projectId: string, id: string) => request<void>(`/projects/${projectId}/comments/${id}`, json('DELETE')),
+    approval: (projectId: string) => request<Approval>(`/projects/${projectId}/approval`),
+    requestApproval: (projectId: string) => request<Approval>(`/projects/${projectId}/approval/request`, json('POST')),
+    decide: (projectId: string, decision: 'approved' | 'changes_requested', note: string) =>
+      request<Approval>(`/projects/${projectId}/approval`, json('POST', { decision, note })),
+    share: (projectId: string) => request<ShareLink | null>(`/projects/${projectId}/share`),
+    createShare: (projectId: string, showCosts: boolean) =>
+      request<ShareLink>(`/projects/${projectId}/share`, json('POST', { show_costs: showCosts })),
+    updateShare: (projectId: string, showCosts: boolean) =>
+      request<ShareLink>(`/projects/${projectId}/share`, json('PATCH', { show_costs: showCosts })),
+    deleteShare: (projectId: string) => request<void>(`/projects/${projectId}/share`, json('DELETE')),
+    activity: (projectId: string) => request<ActivityItem[]>(`/projects/${projectId}/activity`),
+    shared: (token: string) => request<SharedProject>(`/public/shared/${token}`),
+  },
+  teams: {
+    list: () => request<Team[]>('/teams'),
+    create: (name: string) => request<Team>('/teams', json('POST', { name })),
+    rename: (id: string, name: string) => request<Team>(`/teams/${id}`, json('PATCH', { name })),
+    addMember: (id: string, email: string, role: string) => request<Team>(`/teams/${id}/members`, json('POST', { email, role })),
+    setRole: (id: string, userId: string, role: string) =>
+      request<Team>(`/teams/${id}/members/${userId}`, json('PATCH', { role })),
+    removeMember: (id: string, userId: string) => request<void>(`/teams/${id}/members/${userId}`, json('DELETE')),
+    cancelInvite: (id: string, email: string) => request<void>(`/teams/${id}/invites/${encodeURIComponent(email)}`, json('DELETE')),
+    remove: (id: string) => request<void>(`/teams/${id}`, json('DELETE')),
   },
   history: {
     versions: (projectId: string) =>

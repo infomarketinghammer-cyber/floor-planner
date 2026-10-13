@@ -4,6 +4,7 @@ import type { Estimate, TileAdvice, TileOption } from '../../api/types.ts'
 import { plural } from '../../lib/format.ts'
 import type { RoomsReview } from '../rooms/useRoomsReview.ts'
 import { Button } from '../ui.tsx'
+import { useProjectRole } from '../../lib/projectRole.ts'
 
 const pct = (v: string) => `${Number(v)}%`
 const boxes = (o: TileOption) => `${o.boxes} ${o.boxes === 1 ? 'box' : 'boxes'}`
@@ -22,6 +23,7 @@ export function TileAdvicePanel({
   estimate: Estimate
 }) {
   const state = review.state!
+  const { canEdit } = useProjectRole()
   const [advice, setAdvice] = useState<TileAdvice | null>(null)
   const [open, setOpen] = useState(false)
 
@@ -42,7 +44,7 @@ export function TileAdvicePanel({
   )
   const better = advice?.rooms.filter((r) => r.best) ?? []
   const projectBest = advice?.project?.best ?? null
-  if (!advice?.summary && reuseSaving <= 0) return null
+  if (!canEdit || (!advice?.summary && reuseSaving <= 0)) return null // advice is for the team, not clients
 
   async function applyInRoom(roomId: string, name: string, tileId: string, label: string) {
     await review.mutate(`Use ${label} in ${name}`, () =>

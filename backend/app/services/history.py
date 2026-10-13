@@ -21,7 +21,7 @@ SNAPSHOT_FIELDS = (
 )
 
 
-def _metrics(doc: dict) -> dict:
+def version_metrics(doc: dict) -> dict:
     """Totals at this version: boxes, waste and cost (None when not calculable)."""
     from app.services.cost import build_cost, cost_settings
     from app.services.estimate import build_estimate
@@ -62,7 +62,7 @@ async def record_version(doc: dict, user: dict | None = None, label: str | None 
             "user_name": user.get("name") if user else None,
             "label": label or current_action(),
             "rooms_version": doc.get("rooms_version") or 0,
-            "metrics": _metrics(doc),
+            "metrics": version_metrics(doc),
             "snapshot": {k: doc.get(k) for k in SNAPSHOT_FIELDS},
         }
     )

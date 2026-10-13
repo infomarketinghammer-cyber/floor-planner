@@ -7,6 +7,7 @@ from app.api.deps import CurrentUser
 from app.core.security import create_access_token, hash_password, verify_password
 from app.db.mongo import get_db
 from app.schemas.user import AuthResponse, LoginRequest, RegisterRequest, Role, UserOut, user_out
+from app.services.collab import attach_invites
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -33,6 +34,7 @@ async def register(body: RegisterRequest) -> AuthResponse:
     except DuplicateKeyError:
         raise HTTPException(status.HTTP_409_CONFLICT, "Email is already registered") from None
     user["_id"] = result.inserted_id
+    await attach_invites(user)  # teams and projects they were invited to before signing up
     return _auth_response(user)
 
 
@@ -43,6 +45,7 @@ async def login(body: LoginRequest) -> AuthResponse:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid email or password")
     if not user["is_active"]:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Account is disabled")
+    await attach_invites(user)
     return _auth_response(user)
 
 

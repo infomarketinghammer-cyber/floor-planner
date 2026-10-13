@@ -180,7 +180,7 @@ class ExportData:
         return self.cost is not None and (self.cost.has_prices or bool(self.cost.lines))
 
 
-def export_data(doc: dict, area_unit: AreaUnit) -> ExportData:
+def export_data(doc: dict, area_unit: AreaUnit, include_costs: bool = True) -> ExportData:
     state = review_state(doc)
     default = project_default(doc)
     extras = extras_settings(doc)
@@ -195,6 +195,6 @@ def export_data(doc: dict, area_unit: AreaUnit) -> ExportData:
         estimate=estimate,
         rooms={r.id: r for r in state.rooms},
         shopping=[ShoppingItem(f"T{i}", t) for i, t in enumerate(estimate.tiles, start=1)],
-        cost=build_cost(state, default, estimate, settings, extras),
+        cost=build_cost(state, default, estimate, settings, extras) if include_costs else None,
         settings=settings,
     )

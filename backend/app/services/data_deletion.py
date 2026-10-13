@@ -28,6 +28,8 @@ async def delete_project_data(project: dict) -> None:
     await db.extraction_outcomes.delete_many({"project_id": pid})
     await db.feedback.delete_many({"project_id": pid})
     await db.quotes.delete_many({"project_id": pid})
+    for coll in ("project_versions", "comments", "approvals", "activity"):
+        await db[coll].delete_many({"project_id": pid})
 
 
 async def delete_account(user_id: ObjectId) -> dict[str, int]:
@@ -50,5 +52,11 @@ async def delete_account(user_id: ObjectId) -> dict[str, int]:
     if user and user.get("company_logo_id"):
         await storage.delete(user["company_logo_id"])
     await db.counters.delete_many({"_id": {"$regex": f"^quote:{user_id}:"}})
+    # Teams they own are dissolved (projects stay with their owners); other teams drop them.
+    async for team in db.teams.find({"owner_id": user_id}, {"_id": 1}):
+        await db.projects.update_many({"team_id": team["_id"]}, {"$unset": {"team_id": ""}})
+        await db.teams.delete_one({"_id": team["_id"]})
+    await db.teams.update_many({}, {"$pull": {"members": {"user_id": user_id}}})
+    await db.projects.update_many({}, {"$pull": {"members": {"user_id": user_id}}})
     await db.users.delete_one({"_id": user_id})
     return {"projects": projects, "tiles": tiles, "evaluation_copies": eval_copies}

@@ -29,6 +29,11 @@ export function AppLayout() {
             <NavLink to="/tiles" className={navClass}>
               Tiles
             </NavLink>
+            {!isGuest && (
+              <NavLink to="/team" className={navClass}>
+                Team
+              </NavLink>
+            )}
             {user?.role === 'admin' && (
               <NavLink to="/admin" className={navClass}>
                 Admin

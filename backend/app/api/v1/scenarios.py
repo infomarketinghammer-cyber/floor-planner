@@ -24,6 +24,7 @@ from app.schemas.scenario import (
     ScenarioRenameIn,
     ScenarioRoom,
 )
+from app.services.access import require_costs
 from app.services.cost import cost_settings
 from app.services.extras import extras_settings
 from app.services.materials import load_tile_ref, project_default
@@ -90,6 +91,8 @@ async def list_scenarios(project_id: str, user: CurrentUser) -> ComparisonOut:
 @router.post("", response_model=ComparisonOut, status_code=status.HTTP_201_CREATED)
 async def add_scenario(project_id: str, body: ScenarioIn, user: CurrentUser) -> ComparisonOut:
     project = await get_project_or_404(user, project_id)
+    if body.price is not None or body.keep_price:
+        require_costs()  # prices are for roles that see costs
     scenarios = load_scenarios(project)
     if len(scenarios) >= MAX_SCENARIOS:
         raise HTTPException(

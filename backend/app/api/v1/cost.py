@@ -23,7 +23,7 @@ router = APIRouter(prefix="/projects/{project_id}/cost", tags=["cost"])
 
 @router.put("/settings", response_model=RoomsOut)
 async def set_cost_settings(project_id: str, body: CostSettings, user: CurrentUser) -> RoomsOut:
-    project = await get_project_or_404(user, project_id)
+    project = await get_project_or_404(user, project_id, "cost")
     # Lines added in the browser carry temporary ids; give them, and any repeats, lasting ones.
     seen: set[str] = set()
     for line in body.lines:

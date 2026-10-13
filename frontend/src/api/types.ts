@@ -31,6 +31,10 @@ export interface Project {
   created_at: string
   updated_at: string
   last_exported_at: string | null
+  my_role: ProjectRole // the viewer's role on this project (PRD 4.18)
+  team_id: string | null
+  shared: boolean // a read-only link is active
+  approval_requested_at: string | null
 }
 
 export interface AdminStats {
@@ -849,4 +853,94 @@ export interface TileUpdate {
   available: boolean // false: removed from the library
   changes: { field: string; old: string | null; new: string | null }[]
   used_in: string[]
+}
+
+// --- Collaboration (PRD 4.18) ----------------------------------------------------------------------
+export type ProjectRole = 'owner' | 'contractor' | 'designer' | 'homeowner'
+
+export interface Person {
+  user_id: string | null
+  name: string
+  email: string
+  role: string
+  via: 'owner' | 'team' | 'project' | 'invite'
+}
+
+export interface People {
+  my_role: ProjectRole
+  team: { id: string; name: string } | null
+  people: Person[]
+}
+
+export interface Comment {
+  id: string
+  user_id: string | null
+  user_name: string
+  role: string
+  text: string
+  room_id: string | null
+  room_name: string | null
+  resolved: boolean
+  at: string
+  mine: boolean
+}
+
+export interface Approval {
+  requested_at: string | null
+  current_version: number
+  approved_current: boolean
+  pending: boolean
+  decisions: {
+    user_name: string
+    role: string
+    decision: 'approved' | 'changes_requested'
+    note: string | null
+    at: string
+    current: boolean
+    metrics: Record<string, unknown>
+  }[]
+}
+
+export interface ShareLink {
+  token: string
+  show_costs: boolean
+  created_at: string
+}
+
+export interface ActivityItem {
+  at: string
+  user_name: string | null
+  label: string
+  detail: string | null
+}
+
+export interface Team {
+  id: string
+  name: string
+  my_role: string
+  members: { user_id: string; name: string; email: string; role: string }[]
+  invites: { email: string; role: string; invited_at: string }[]
+  projects: number
+}
+
+export interface SharedProject {
+  ready: boolean
+  blockers?: string[]
+  project_name: string
+  company: string | null
+  updated_at?: string
+  rooms?: { name: string; floor: string | null; size: string; area_sqft: string; area_sqm: string; tile: string; layout: string; boxes: number; roll_m: string | null }[]
+  totals?: { rooms: number; boxes: number; area_sqft: string; area_sqm: string; extra_pct: string }
+  shopping?: { section: string; name: string; size: string; quantity: string; detail: string }[]
+  assumptions?: { title: string; text: string }[]
+  notice?: string
+  cost?: {
+    currency: string
+    locale: string
+    materials: string | null
+    extras: { label: string; amount: string }[]
+    lines: { label: string; amount: string }[]
+    tax: { label: string; pct: string; amount: string } | null
+    total: string
+  } | null
 }

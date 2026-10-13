@@ -28,6 +28,7 @@ from app.schemas.material import (
     TileRef,
 )
 from app.schemas.project import RoomOrigin, RoomPart, RoomsOut
+from app.services.access import require_costs
 from app.services.estimate import build_estimate, room_parts
 from app.services.extras import extras_settings
 from app.services.history import record_version
@@ -53,6 +54,9 @@ async def set_default_material(
     """Project-wide settings every room uses unless it overrides them."""
     project = await get_project_or_404(user, project_id)
     _check_version(project, body.version)
+    current = project_default(project)
+    if body.price != current.price:
+        require_costs()  # designers edit tiles, not prices
     default = ProjectMaterial(
         tile=await load_tile_ref(body.tile_id, user, project) if body.tile_id else None,
         layout=body.layout,
@@ -77,6 +81,8 @@ async def set_rooms_material(project_id: str, body: RoomsMaterialIn, user: Curre
     if missing := wanted - {r.id for r in rooms}:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"{len(missing)} room(s) not found")
     sent = body.set.model_fields_set
+    if "price" in sent or "price" in body.inherit:
+        require_costs()
     sent_fields = {"tile" if f == "tile_id" else f for f in sent}  # same names as `inherit`
     if overlap := sent_fields & set(body.inherit):
         raise HTTPException(

@@ -7,6 +7,8 @@ import { HomePage } from './pages/HomePage.tsx'
 import { LandingPage } from './pages/LandingPage.tsx'
 import { LoginPage } from './pages/LoginPage.tsx'
 import { PrivacyPage } from './pages/PrivacyPage.tsx'
+import { SharedPage } from './pages/SharedPage.tsx'
+import { TeamPage } from './pages/TeamPage.tsx'
 import { ProjectPage } from './pages/ProjectPage.tsx'
 import { RegisterPage } from './pages/RegisterPage.tsx'
 import { TilesPage } from './pages/TilesPage.tsx'
@@ -20,6 +22,7 @@ export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
   { path: '/register', element: <RegisterPage /> },
   { path: '/privacy', element: <PrivacyPage /> }, // public: readable before signing up
+  { path: '/share/:token', element: <SharedPage /> }, // public read-only link (PRD 4.18)
   {
     element: <RequireAuth />,
     children: [
@@ -32,6 +35,7 @@ export const router = createBrowserRouter([
             children: [
               { path: 'projects/:projectId', element: <ProjectPage /> },
               { path: 'tiles', element: <TilesPage /> },
+              { path: 'team', element: <TeamPage /> },
             ],
           },
           {

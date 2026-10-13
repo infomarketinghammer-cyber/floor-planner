@@ -9,6 +9,8 @@ from contextvars import ContextVar
 
 from fastapi import Request
 
+from app.services.access import set_request_method
+
 _action: ContextVar[str | None] = ContextVar("action", default=None)
 _user: ContextVar[dict | None] = ContextVar("acting_user", default=None)
 
@@ -39,11 +41,13 @@ LABELS: dict[str, str] = {
     "create_quote": "Made a quote",
     "revise_quote": "Revised a quote",
     "apply_tile_updates": "Updated tiles from the library",
+    "set_project_team": "Changed the project's team",
 }
 
 
 async def track_action(request: Request) -> None:
     """Router dependency: remember which route is running."""
+    set_request_method(request.method)
     route = request.scope.get("route")
     name = getattr(route, "name", None)
     _action.set(LABELS.get(name, name.replace("_", " ").capitalize() if name else None))

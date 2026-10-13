@@ -105,7 +105,7 @@ def snapshot(project: dict, room_id: str | None) -> dict:
 
 @router.post("/feedback", response_model=FeedbackOut, status_code=status.HTTP_201_CREATED)
 async def add_feedback(project_id: str, body: FeedbackIn, user: CurrentUser) -> FeedbackOut:
-    project = await get_project_or_404(user, project_id)
+    project = await get_project_or_404(user, project_id, "comment")
     doc = {
         "project_id": project["_id"],
         "owner_id": project["owner_id"],
@@ -131,7 +131,7 @@ async def list_feedback(project_id: str, user: CurrentUser) -> list[FeedbackOut]
 
 @router.delete("/feedback/{feedback_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_feedback(project_id: str, feedback_id: str, user: CurrentUser) -> Response:
-    project = await get_project_or_404(user, project_id)
+    project = await get_project_or_404(user, project_id, "comment")
     try:
         oid = ObjectId(feedback_id)
     except Exception:  # noqa: BLE001 - any malformed id is simply "not found"
@@ -171,7 +171,7 @@ class EvalConsentIn(BaseModel):
 
 @router.post("/evaluation", response_model=AccuracyOut)
 async def add_to_evaluation(project_id: str, body: EvalConsentIn, user: CurrentUser) -> AccuracyOut:
-    project = await get_project_or_404(user, project_id)
+    project = await get_project_or_404(user, project_id, "manage")
     if not body.consent:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT, "Agree to share a copy of the plan first."
@@ -185,6 +185,6 @@ async def add_to_evaluation(project_id: str, body: EvalConsentIn, user: CurrentU
 
 @router.delete("/evaluation", response_model=AccuracyOut)
 async def remove_from_evaluation(project_id: str, user: CurrentUser) -> AccuracyOut:
-    project = await get_project_or_404(user, project_id)
+    project = await get_project_or_404(user, project_id, "manage")
     await remove_from_eval_set({"project_id": project["_id"]})
     return await _accuracy(project)

@@ -7,6 +7,7 @@ import { LAYOUT_LABELS, PriceInput } from '../materials/MaterialDialogs.tsx'
 import { TilePicker } from '../materials/TilePicker.tsx'
 import type { RoomsReview } from '../rooms/useRoomsReview.ts'
 import { Button, ErrorText } from '../ui.tsx'
+import { useProjectRole } from '../../lib/projectRole.ts'
 
 const MM2_PER_SQFT = 92_903.04
 const BADGES: Record<ScenarioBadge, [string, string]> = {
@@ -382,6 +383,7 @@ function AddOptionForm({
   const [breakage, setBreakage] = useState('')
   const [price, setPrice] = useState<Price | null>(null)
   const [everyRoom, setEveryRoom] = useState(false)
+  const { canSeeCosts } = useProjectRole()
   const [saving, setSaving] = useState(false)
 
   async function submit(event: FormEvent) {
@@ -444,10 +446,12 @@ function AddOptionForm({
             %
           </span>
         </label>
-        <div>
-          <span className="mb-1 block text-slate-600">Price of this tile (optional)</span>
-          <PriceInput value={price} onChange={setPrice} />
-        </div>
+        {canSeeCosts && (
+          <div>
+            <span className="mb-1 block text-slate-600">Price of this tile (optional)</span>
+            <PriceInput value={price} onChange={setPrice} />
+          </div>
+        )}
         <label className="flex items-center gap-2 pb-2">
           <input type="checkbox" checked={everyRoom} onChange={(e) => setEveryRoom(e.target.checked)} className="accent-brand-600" />
           Use in every room, even rooms with their own tile
