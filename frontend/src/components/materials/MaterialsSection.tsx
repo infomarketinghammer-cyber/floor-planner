@@ -13,6 +13,7 @@ import {
   type ExclusionRow,
   type MaterialChange,
 } from './MaterialDialogs.tsx'
+import { ExtrasSettingsCard, SuggestionsPanel, WallsDialog, wallsSummary, type WallsPreset } from './ExtrasDialogs.tsx'
 import { TilePicker } from './TilePicker.tsx'
 
 const MM2_PER_SQFT = 92_903.04
@@ -23,6 +24,8 @@ export function MaterialsSection({ projectId, review }: { projectId: string; rev
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [editing, setEditing] = useState<ReviewRoom[] | null>(null)
   const [excluding, setExcluding] = useState<ReviewRoom | null>(null)
+  // Walls & doors: one room, or a queue of rooms from a suggestion (opened one after another).
+  const [walling, setWalling] = useState<{ ids: string[]; preset?: WallsPreset } | null>(null)
   const [copyFrom, setCopyFrom] = useState('')
   const [areaUnit] = useAreaUnit()
 
@@ -92,6 +95,9 @@ export function MaterialsSection({ projectId, review }: { projectId: string; rev
         }
       />
 
+      <ExtrasSettingsCard key={JSON.stringify(state.extras_settings)} projectId={projectId} review={review} />
+      <SuggestionsPanel projectId={projectId} review={review} onTileWalls={(ids, preset) => setWalling({ ids, preset })} />
+
       {chosen.length > 0 && (
         <div className="sticky top-2 z-20 flex flex-wrap items-center gap-2 rounded-xl border border-brand-600/30 bg-brand-50 px-4 py-3 text-sm shadow-sm">
           <span className="font-medium">{plural(chosen.length, 'room')} selected</span>
@@ -147,7 +153,7 @@ export function MaterialsSection({ projectId, review }: { projectId: string; rev
       <ErrorText>{review.error}</ErrorText>
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-        <div className="hidden grid-cols-[2rem_minmax(0,1.3fr)_minmax(0,1.6fr)_6rem_5rem_7rem_minmax(0,1fr)_5.5rem] gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 text-xs font-medium uppercase text-slate-500 md:grid">
+        <div className="hidden grid-cols-[2rem_minmax(0,1.3fr)_minmax(0,1.6fr)_6rem_5rem_7rem_minmax(0,1fr)_8.5rem] gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 text-xs font-medium uppercase text-slate-500 md:grid">
           <input
             type="checkbox"
             checked={allSelected}
@@ -173,6 +179,7 @@ export function MaterialsSection({ projectId, review }: { projectId: string; rev
               onToggle={() => toggle(room.id)}
               onEdit={() => setEditing([room])}
               onExclusions={() => setExcluding(room)}
+              onWalls={() => setWalling({ ids: [room.id] })}
               onSkip={(skipped) =>
                 applyToRooms(`${skipped ? 'Skip' : 'Tile'} ${room.name}`, [room.id], { skipped })
               }
@@ -203,6 +210,25 @@ export function MaterialsSection({ projectId, review }: { projectId: string; rev
               { rethrow: true },
             )
             setEditing(null)
+          }}
+        />
+      )}
+      {walling && rooms.some((r) => r.id === walling.ids[0]) && (
+        <WallsDialog
+          key={walling.ids[0]}
+          room={rooms.find((r) => r.id === walling.ids[0])!}
+          settings={state.extras_settings}
+          preset={walling.preset}
+          onClose={() => setWalling(null)}
+          onSave={async (data) => {
+            const room = rooms.find((r) => r.id === walling.ids[0])!
+            await mutate(
+              `Change walls & doors of ${room.name}`,
+              () => api.materials.setRoomWalls(projectId, room.id, data, version),
+              { rethrow: true },
+            )
+            const rest = walling.ids.slice(1)
+            setWalling(rest.length ? { ids: rest, preset: walling.preset } : null)
           }}
         />
       )}
@@ -330,6 +356,7 @@ function MaterialRow({
   onToggle,
   onEdit,
   onExclusions,
+  onWalls,
   onSkip,
   busy,
 }: {
@@ -339,6 +366,7 @@ function MaterialRow({
   onToggle: () => void
   onEdit: () => void
   onExclusions: () => void
+  onWalls: () => void
   onSkip: (skipped: boolean) => Promise<boolean>
   busy: boolean
 }) {
@@ -359,7 +387,7 @@ function MaterialRow({
 
   return (
     <li
-      className={`grid grid-cols-[2rem_1fr] gap-x-3 gap-y-2 px-4 py-3 text-sm md:grid-cols-[2rem_minmax(0,1.3fr)_minmax(0,1.6fr)_6rem_5rem_7rem_minmax(0,1fr)_5.5rem] md:items-center ${
+      className={`grid grid-cols-[2rem_1fr] gap-x-3 gap-y-2 px-4 py-3 text-sm md:grid-cols-[2rem_minmax(0,1.3fr)_minmax(0,1.6fr)_6rem_5rem_7rem_minmax(0,1fr)_8.5rem] md:items-center ${
         room.skipped ? 'bg-slate-50 text-slate-400' : selected ? 'bg-brand-50/50' : ''
       }`}
     >
@@ -370,6 +398,7 @@ function MaterialRow({
           {fullArea === null ? 'Size missing' : area(fullArea)}
           {excluded > 0 && usable !== null && <> · {area(usable)} to tile</>}
         </p>
+        {!room.skipped && wallsSummary(room) && <p className="text-xs text-brand-700">{wallsSummary(room)}</p>}
       </div>
       {room.skipped ? (
         <p className="col-start-2 md:col-span-5">No tiling</p>
@@ -409,9 +438,14 @@ function MaterialRow({
       )}
       <div className="col-start-2 flex gap-3 md:col-start-auto md:justify-end">
         {!room.skipped && (
-          <button onClick={onEdit} className="text-slate-700 hover:underline">
-            Edit
-          </button>
+          <>
+            <button onClick={onEdit} className="text-slate-700 hover:underline">
+              Edit
+            </button>
+            <button onClick={onWalls} className="whitespace-nowrap text-slate-700 hover:underline" title="Doors, windows, wall tiles and skirting">
+              Walls
+            </button>
+          </>
         )}
         {/* Remounts when the saved value changes, which clears the optimistic state. */}
         <SkipToggle key={String(room.skipped)} skipped={room.skipped} busy={busy} onSkip={onSkip} />

@@ -9,6 +9,7 @@ from app.schemas.estimate import EstimateOut
 from app.schemas.project import ProjectCreate, ProjectOut, ProjectStatus, ProjectUpdate
 from app.services.data_deletion import delete_project_data
 from app.services.estimate import build_estimate
+from app.services.extras import extras_settings
 from app.services.materials import project_default
 from app.services.project_summary import project_out
 from app.services.projects import project_scope
@@ -55,7 +56,7 @@ async def get_estimate(project_id: str, user: CurrentUser) -> EstimateOut:
     doc = await get_db().projects.find_one(project_scope(user, project_id))
     if doc is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
-    return build_estimate(review_state(doc), project_default(doc))
+    return build_estimate(review_state(doc), project_default(doc), extras_settings(doc))
 
 
 @router.patch("/{project_id}", response_model=ProjectOut)

@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field, field_serializer
 from app.engine.units import LengthUnit
 from app.schemas.cost import CostOut, CostSettings
 from app.schemas.estimate import EstimateOut
+from app.schemas.extras import ExtrasSettings, Opening, WallTiling
 from app.schemas.material import (
     DecimalStr,
     EffectiveMaterial,
@@ -94,6 +95,10 @@ class Room(BaseModel):
     unit_explicit: bool = True  # False when the unit was assumed, not written on the plan
     source: RoomSource | None = None
     extracted: ExtractedValues | None = None  # set once, at extraction; never edited
+    # Additional materials (PRD 4.15)
+    openings: list[Opening] = Field(default_factory=list)  # doors and windows
+    walls: WallTiling | None = None  # None: walls not tiled
+    skirting: bool | None = None  # None: follow the project setting
 
     @field_serializer("length_mm", "width_mm")
     def _decimal_as_str(self, value: Decimal | None) -> str | None:
@@ -234,4 +239,5 @@ class RoomsOut(BaseModel):
     materials: MaterialsSummaryOut
     estimate: EstimateOut  # recalculated on every change (PRD 4.7)
     cost_settings: CostSettings
+    extras_settings: ExtrasSettings
     cost: CostOut | None  # PRD 4.10; None until the quantities are ready

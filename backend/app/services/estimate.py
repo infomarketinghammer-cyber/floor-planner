@@ -16,6 +16,13 @@ from app.engine.calc import (
     calculate_by_area,
     calculate_room,
 )
+from app.engine.extras import (
+    PLANK_ALLOWANCE_PCT,
+    PLANK_DIAGONAL_ALLOWANCE_PCT,
+    ROLL_TRIM_MM,
+    calculate_roll,
+    calculate_roll_by_area,
+)
 from app.engine.units import mm2_to_sqft, mm2_to_sqm
 from app.extraction.classify import room_type
 from app.schemas.estimate import (
@@ -25,8 +32,10 @@ from app.schemas.estimate import (
     RoomEstimateOut,
     TileTotalOut,
 )
-from app.schemas.material import Layout, ProjectMaterial
+from app.schemas.extras import ExtrasOut, ExtrasSettings
+from app.schemas.material import Layout, ProductKind, ProjectMaterial
 from app.schemas.project import Room
+from app.services.extras import build_extras
 from app.services.materials import effective, materials_summary
 from app.services.plan_units import UNIT_NAMES
 from app.services.review import ReviewState
@@ -73,7 +82,19 @@ def estimate_room(room: Room, default: ProjectMaterial) -> RoomEstimateOut:
     exclusions = tuple(Excluded(e.length_mm, e.width_mm, e.quantity) for e in room.exclusions)
     excluded_area = sum((e.area_mm2 for e in exclusions), Decimal(0))
 
-    if room.area_only:
+    if eff.tile.kind == ProductKind.ROLL:
+        return _estimate_roll(room, eff, excluded_area)
+    if eff.tile.kind == ProductKind.PLANK:
+        allowance = (
+            PLANK_DIAGONAL_ALLOWANCE_PCT if eff.layout == Layout.DIAGONAL else PLANK_ALLOWANCE_PCT
+        )
+        reason = (
+            f"Planks are laid in staggered rows: worked out by area plus {allowance:f}% for "
+            "cuts at the row ends."
+        )
+        area = room.area_mm2 if room.area_only else room.floor_area_mm2
+        result = calculate_by_area(area, tile, allowance, eff.breakage_pct, excluded_area)
+    elif room.area_only:
         allowance = (
             DIAGONAL_ALLOWANCE_PCT if eff.layout == Layout.DIAGONAL else AREA_ONLY_ALLOWANCE_PCT
         )
@@ -96,6 +117,7 @@ def estimate_room(room: Room, default: ProjectMaterial) -> RoomEstimateOut:
 
     high_waste = result.cut_waste_pct > HIGH_WASTE_PCT
     return RoomEstimateOut(
+        kind=eff.tile.kind,
         room_id=room.id,
         name=room.name,
         floor=room.floor,
@@ -134,7 +156,66 @@ def estimate_room(room: Room, default: ProjectMaterial) -> RoomEstimateOut:
     )
 
 
-def build_estimate(state: ReviewState, default: ProjectMaterial) -> EstimateOut:
+def _estimate_roll(room: Room, eff, excluded_area: Decimal) -> RoomEstimateOut:
+    """Carpet or sheet vinyl: drops cut from a roll of the product's width (PRD 4.15)."""
+    roll_width = eff.tile.width_mm
+    if room.area_only:
+        r = calculate_roll_by_area(room.area_mm2, roll_width, excluded_area)
+        reason = (
+            f"Known by area only: roll length is the area ÷ roll width plus {r.allowance_pct:f}%."
+        )
+    else:
+        r = calculate_roll(room.length_mm, room.width_mm, roll_width, excluded_area)
+        reason = (
+            f"{r.drops} drop{'s' if r.drops != 1 else ''} along the room's {r.along}, each "
+            f"{ROLL_TRIM_MM:f} mm longer than the room for trimming."
+        )
+    waste_pct = r.extra_area_mm2 / r.usable_area_mm2 * 100
+    high_waste = waste_pct > HIGH_WASTE_PCT
+    return RoomEstimateOut(
+        room_id=room.id,
+        name=room.name,
+        floor=room.floor,
+        room_type=room_type(room.name),
+        tile=eff.tile,
+        layout=eff.layout,
+        method="roll",
+        kind=ProductKind.ROLL,
+        method_reason=reason,
+        allowance_pct=r.allowance_pct,
+        breakage_pct=Decimal(0),
+        room_area_mm2=r.room_area_mm2,
+        usable_area_mm2=r.usable_area_mm2,
+        columns=r.drops,
+        rows=None,
+        grid_tiles=0,
+        excluded_tiles=0,
+        tiles_needed=0,
+        cut_waste_mm2=r.extra_area_mm2,
+        cut_waste_pct=waste_pct.quantize(_TWO),
+        buffer_tiles=0,
+        tiles_required=0,
+        boxes=0,
+        tiles_bought=0,
+        extra_area_mm2=r.extra_area_mm2,
+        buffer_area_mm2=Decimal(0),
+        rounding_tiles=0,
+        rounding_area_mm2=Decimal(0),
+        extra_pct=waste_pct.quantize(_TWO),
+        high_waste=high_waste,
+        waste_hint=(
+            f"{waste_pct:.0f}% of the roll is trimmed off. A different roll width would reduce it."
+            if high_waste
+            else None
+        ),
+        linear_mm=r.linear_mm,
+        drops=r.drops,
+    )
+
+
+def build_estimate(
+    state: ReviewState, default: ProjectMaterial, extras: ExtrasSettings | None = None
+) -> EstimateOut:
     problems = blockers(state, default)
     if problems:
         return EstimateOut(
@@ -159,6 +240,7 @@ def build_estimate(state: ReviewState, default: ProjectMaterial) -> EstimateOut:
         ref = group[0].tile
         required = sum(r.tiles_required for r in group)
         bought = sum(r.tiles_bought for r in group)
+        roll = ref.kind == ProductKind.ROLL
         tiles.append(
             TileTotalOut(
                 tile=ref,
@@ -167,8 +249,12 @@ def build_estimate(state: ReviewState, default: ProjectMaterial) -> EstimateOut:
                 tiles_required=required,
                 boxes=sum(r.boxes for r in group),
                 tiles_bought=bought,
-                bought_area_mm2=bought * ref.length_mm * ref.width_mm,
-                boxes_if_pooled=-(-required // ref.tiles_per_box),
+                # Usable + extra = what's bought, for boxes and rolls alike.
+                bought_area_mm2=sum(
+                    (r.usable_area_mm2 + r.extra_area_mm2 for r in group), Decimal(0)
+                ),
+                boxes_if_pooled=0 if roll else -(-required // ref.tiles_per_box),
+                linear_mm=sum((r.linear_mm for r in group), Decimal(0)) if roll else None,
             )
         )
 
@@ -190,14 +276,17 @@ def build_estimate(state: ReviewState, default: ProjectMaterial) -> EstimateOut:
         high_waste_rooms=sum(r.high_waste for r in rooms),
         boxes=sum(t.boxes for t in tiles),
     )
+    settings = extras or ExtrasSettings()
+    extras_out = build_extras(state.rooms, rooms, settings)
     return EstimateOut(
         ready=True,
         blockers=[],
         rooms=rooms,
         tiles=tiles,
         totals=totals,
-        assumptions=assumptions(state, default, rooms, tiles),
+        assumptions=assumptions(state, default, rooms, tiles, settings, extras_out),
         offcut_note=OFFCUT_NOTE,
+        extras=extras_out,
     )
 
 
@@ -214,6 +303,10 @@ def _pct(value: Decimal) -> str:
     return f"{value.normalize():f}%"
 
 
+def _sentence(text: str) -> str:
+    return text[:1].upper() + text[1:] + "."
+
+
 def _names(rooms: list) -> str:
     names = [r.name for r in rooms]
     return (
@@ -226,10 +319,16 @@ def assumptions(
     default: ProjectMaterial,
     rooms: list[RoomEstimateOut],
     tiles: list[TileTotalOut],
+    settings: ExtrasSettings | None = None,
+    extras: ExtrasOut | None = None,
 ) -> list[Assumption]:
     """Plain-language statement of how the numbers were worked out, from the project's own data."""
+    settings = settings or ExtrasSettings()
     out: list[Assumption] = []
     grid = [r for r in rooms if r.method == "grid"]
+    planks = [r for r in rooms if r.kind == ProductKind.PLANK]
+    rolls = [r for r in rooms if r.kind == ProductKind.ROLL]
+    rooms = [r for r in rooms if r.kind == ProductKind.TILE]  # tile rules below
     diagonal = [r for r in rooms if r.method == "area" and r.layout == Layout.DIAGONAL]
     by_area = [r for r in rooms if r.method == "area" and r.layout != Layout.DIAGONAL]
 
@@ -321,11 +420,73 @@ def assumptions(
                 text=f"{_names(skipped)}: marked as needing no tiles.",
             )
         )
+    if planks:
+        out.append(
+            Assumption(
+                key="method_plank",
+                title="Planks",
+                text=f"{_names(planks)}: area plus {_pct(PLANK_ALLOWANCE_PCT)} for cuts at the row "
+                f"ends ({_pct(PLANK_DIAGONAL_ALLOWANCE_PCT)} if laid diagonally), then boxes.",
+            )
+        )
+    if rolls:
+        out.append(
+            Assumption(
+                key="method_roll",
+                title="Roll flooring",
+                text=f"{_names(rolls)}: drops cut from the roll, laid whichever way needs less, each "
+                f"{ROLL_TRIM_MM:f} mm longer than the room for trimming. Seams aren't matched for "
+                "pattern repeat.",
+            )
+        )
+    if extras and extras.walls:
+        out.append(
+            Assumption(
+                key="walls",
+                title="Wall tiles",
+                text=f"{_names(extras.walls)}: tiles counted on a grid for each wall up to the tiling "
+                "height, turned whichever way needs fewer. Only tiles certain to fall inside a door "
+                "or window are taken off.",
+            )
+        )
+    if extras and extras.skirting:
+        sk = settings.skirting
+        source = (
+            "cut from each room's floor tile (strips along the long side)"
+            if sk.source == "floor_tile"
+            else f"{sk.piece_name}, {sk.piece_length_mm.normalize():f} mm pieces"
+        )
+        out.append(
+            Assumption(
+                key="skirting",
+                title="Skirting",
+                text=f"{sk.height_mm.normalize():f} mm high, {source}. Room perimeter minus door "
+                f"widths, plus {_pct(sk.breakage_pct)} breakage."
+                + (" Rooms with tiled walls are left out." if sk.skip_tiled_walls else ""),
+            )
+        )
+    if extras and extras.sundries:
+        out.append(
+            Assumption(
+                key="sundries",
+                title="Adhesive, grout and spacers",
+                text="; ".join(f"{x.label}: {x.basis}" for x in extras.sundries)
+                + ". Planks and roll flooring aren't included.",
+            )
+        )
+    missing = ["grout joint width (tiles are counted edge to edge)"]
+    if not (extras and extras.skirting):
+        missing.append("skirting")
+    if not (extras and extras.walls):
+        missing.append("wall tiles")
+    if not (extras and extras.sundries):
+        missing.append("adhesive, grout and spacers")
+    missing.append("underlay and trims for wood, vinyl and carpet")
     out.append(
         Assumption(
             key="not_included",
             title="Not included",
-            text="Grout joint width (tiles are counted edge to edge), skirting, wall tiles, adhesive and grout.",
+            text=_sentence(", ".join(missing)),
         )
     )
     return out

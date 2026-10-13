@@ -178,15 +178,25 @@ export function TilesPage() {
                   <Badge tone={tile.scope === 'catalog' ? 'slate' : 'blue'}>
                     {tile.scope === 'catalog' ? 'Catalogue' : 'My tile'}
                   </Badge>
+                  {tile.kind !== 'tile' && <Badge tone="blue">{tile.kind === 'roll' ? 'Roll' : 'Planks'}</Badge>}
                   <Badge>{TYPE_LABELS[tile.type]}</Badge>
                   <Badge>{FINISH_LABELS[tile.finish]}</Badge>
                   <Badge>{MATERIAL_LABELS[tile.material]}</Badge>
                 </div>
 
                 <dl className="mt-3 grid grid-cols-2 gap-y-1 text-sm">
+                  {tile.kind === 'roll' ? (
+                    <>
+                      <dt className="text-slate-500">Roll width</dt>
+                      <dd className="text-right tabular-nums">{Number(tile.width_mm) / 1000} m</dd>
+                      <dt className="text-slate-500">Roll length</dt>
+                      <dd className="text-right tabular-nums">{Number(tile.length_mm) / 1000} m</dd>
+                    </>
+                  ) : (
+                    <>
                   <dt className="text-slate-500">Per box</dt>
                   <dd className="text-right tabular-nums">
-                    {plural(tile.tiles_per_box, 'tile')}
+                    {plural(tile.tiles_per_box, tile.kind === 'plank' ? 'plank' : 'tile')}
                     {tile.typical && (
                       <span className="ml-1 text-xs text-amber-700" title="Typical pack size. Check with your supplier.">
                         (typical)
@@ -197,6 +207,8 @@ export function TilesPage() {
                   <dd className="text-right tabular-nums">
                     {area(tile.coverage_per_box_sqm, tile.coverage_per_box_sqft)} / box
                   </dd>
+                    </>
+                  )}
                   {tile.thickness_mm && (
                     <>
                       <dt className="text-slate-500">Thickness</dt>

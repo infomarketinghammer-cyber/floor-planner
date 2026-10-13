@@ -12,6 +12,7 @@ from app.schemas.material import (
     MATERIAL_FIELDS,
     EffectiveMaterial,
     MaterialsSummaryOut,
+    ProductKind,
     ProjectMaterial,
     TileRef,
 )
@@ -88,4 +89,8 @@ async def load_tile_ref(tile_id: str, user: dict, project: dict) -> TileRef:
         length_mm=length,
         width_mm=width,
         tiles_per_box=doc["tiles_per_box"],
+        kind=doc.get("kind", ProductKind.TILE.value),
+        thickness_mm=Decimal(doc["thickness_mm"]) if doc.get("thickness_mm") else None,
+        tile_type=doc.get("type"),
+        material=doc.get("material"),
     )

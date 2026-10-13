@@ -91,12 +91,24 @@ class BudgetOut(BaseModel):
     status: Literal["under", "near", "over"]
 
 
+class ExtraCostOut(BaseModel):
+    """Wall tiles, skirting or a sundry (PRD 4.15): material, so taxed like the tiles."""
+
+    key: str  # "wall:<tile id>", "skirting:<tile id or pieces>", "adhesive", "grout", "spacers"
+    label: str
+    quantity: DecimalStr
+    unit: str  # boxes, pieces, m, bags, packs
+    unit_price: DecimalStr
+    amount: DecimalStr
+
+
 class CostOut(BaseModel):
     has_prices: bool  # false: the UI hides the cost columns
     priced_rooms: int
     unpriced_rooms: int
     rooms: list[RoomCostOut]
     materials: DecimalStr | None  # sum of the room costs; None when no room has a price
+    extras: list[ExtraCostOut] = []  # wall tiles, skirting, sundries that have a price
     lines: list[CostLineOut]
     tax: TaxOut | None
     total: DecimalStr

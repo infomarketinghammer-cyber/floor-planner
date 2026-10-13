@@ -13,6 +13,7 @@ from app.evaluation import NotEligible, add_to_eval_set, eligibility, remove_fro
 from app.schemas.project import Room
 from app.services.accuracy import AccuracySummaryOut, corrected_fields, summarize
 from app.services.estimate import build_estimate
+from app.services.extras import extras_settings
 from app.services.materials import project_default
 from app.services.projects import get_project_or_404
 from app.services.review import review_state
@@ -68,7 +69,7 @@ def snapshot(project: dict, room_id: str | None) -> dict:
     """What the user was looking at, so feedback can be analysed later even if rooms change:
     the estimate, and whether the room(s) came from the plan reader and were corrected."""
     state = review_state(project)
-    estimate = build_estimate(state, project_default(project))
+    estimate = build_estimate(state, project_default(project), extras_settings(project))
     if not estimate.ready or estimate.totals is None:
         raise HTTPException(
             status.HTTP_409_CONFLICT, "There are no quantities to give feedback on yet."

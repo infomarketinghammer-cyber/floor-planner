@@ -287,3 +287,64 @@ async def test_send_email_needs_configuration(monkeypatch):
     assert not email.email_enabled()
     with pytest.raises(email.EmailNotConfigured):
         await email.send_email(to=["a@b.com"], subject="s", html="h", text="t")
+
+
+# --- additional materials in exports ------------------------------------------------------------
+
+
+def extras_project() -> dict:
+    from app.schemas.extras import (
+        ExtrasSettings,
+        Opening,
+        SkirtingSettings,
+        SundriesSettings,
+        WallTiling,
+    )
+
+    wall = TileRef(
+        id="w", name="Gloss wall", size_label="300 × 600 mm", length_mm=300, width_mm=600,
+        tiles_per_box=8, tile_type="wall",
+    )  # fmt: skip
+    carpet = TileRef(
+        id="c", name="Wool carpet", size_label="25 × 4 m", length_mm=25000, width_mm=4000,
+        tiles_per_box=1, kind="roll",
+    )  # fmt: skip
+    rooms = [
+        room("Bedroom", length_mm=ft(12), width_mm=ft(10), material=MaterialOverride(tile=carpet)),
+        room("Living", length_mm=ft(15), width_mm=ft(12)),
+        room(
+            "Bathroom",
+            length_mm=ft(8),
+            width_mm=ft(6),
+            walls=WallTiling(height_mm=Decimal(2100), tile=wall),
+            openings=[Opening(id="d", width_mm=Decimal(750), height_mm=Decimal(2100))],
+        ),
+    ]
+    doc = project(SETTINGS, Price(amount=Decimal(800)), rooms=rooms)
+    doc["extras_settings"] = ExtrasSettings(
+        skirting=SkirtingSettings(enabled=True),
+        sundries=SundriesSettings(enabled=True, adhesive_bag_price=Decimal(400)),
+    ).model_dump()
+    return doc
+
+
+def test_exports_include_walls_skirting_sundries_and_rolls():
+    data = export_data(extras_project(), "sqft")
+    sections = [line.section for line in data.shopping_lines]
+    assert sections == ["Floor", "Floor", "Walls", "Skirting", "Sundries", "Sundries", "Sundries"]
+    roll = next(line for line in data.shopping_lines if line.name == "Wool carpet")
+    assert roll.quantity.endswith("m of roll")
+
+    text = pdf_text(render_report(data))
+    for heading in ("Wall tiles", "Skirting", "Tile adhesive", "Grout", "Gloss wall"):
+        assert heading in text
+    text = shopping_text(data)
+    assert "Walls:" in text and "Sundries:" in text and "Wool carpet" in text
+
+    wb = load_workbook(io.BytesIO(render_workbook(data)))
+    assert "Walls and extras" in wb.sheetnames
+    ws = wb["Walls and extras"]
+    assert ws[f"J{FIRST_ROW}"].value == f"=ROUNDUP(H{FIRST_ROW}/I{FIRST_ROW},0)"
+    costs = wb["Costs"]
+    labels = [costs.cell(r, 1).value for r in range(FIRST_ROW, costs.max_row + 1)]
+    assert "Tile adhesive" in labels

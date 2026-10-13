@@ -8,6 +8,7 @@ import { tileColors } from '../results/tileColors.ts'
 import { formatArea, plural, useAreaUnit } from '../../lib/format.ts'
 import { formatMoney, type MoneyFormat } from '../../lib/money.ts'
 import type { RoomsReview } from '../rooms/useRoomsReview.ts'
+import { ExtrasResults } from './ExtrasResults.tsx'
 import { WastePanel } from './WastePanel.tsx'
 
 const MM2_PER_SQFT = 92_903.04
@@ -99,12 +100,26 @@ function Ready({
                 <span className="font-medium">{tt.tile.size_label}</span>{' '}
                 <span className="text-slate-500">{tt.tile.name}</span>
                 <span className="block text-xs text-slate-500">
-                  {plural(tt.rooms, 'room')} · {area(tt.usable_area_mm2)} · {tt.tiles_required} tiles needed
+                  {plural(tt.rooms, 'room')} · {area(tt.usable_area_mm2)}
+                  {tt.linear_mm === null && ` · ${tt.tiles_required} ${tt.tile.kind === 'plank' ? 'planks' : 'tiles'} needed`}
                 </span>
               </span>
               <span className="text-right">
-                <span className="block text-base font-semibold tabular-nums">{tt.boxes} {tt.boxes === 1 ? 'box' : 'boxes'}</span>
-                <span className="text-xs text-slate-500">{tt.tiles_bought} tiles</span>
+                {tt.linear_mm !== null ? (
+                  <>
+                    <span className="block text-base font-semibold tabular-nums">
+                      {Number((Number(tt.linear_mm) / 1000).toFixed(2))} m of roll
+                    </span>
+                    <span className="text-xs text-slate-500">{Number(tt.tile.width_mm) / 1000} m wide</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="block text-base font-semibold tabular-nums">{tt.boxes} {tt.boxes === 1 ? 'box' : 'boxes'}</span>
+                    <span className="text-xs text-slate-500">
+                      {tt.tiles_bought} {tt.tile.kind === 'plank' ? 'planks' : 'tiles'}
+                    </span>
+                  </>
+                )}
                 {tt.boxes_if_pooled < tt.boxes && (
                   <span className="block text-xs text-green-700">
                     {tt.boxes_if_pooled} if leftovers are shared between rooms
@@ -135,6 +150,7 @@ function Ready({
         selectedId={selectedId}
         onSelect={setSelectedId}
       />
+      <ExtrasResults estimate={estimate} area={area} />
       <WastePanel estimate={estimate} area={area} />
       <CostSection projectId={projectId} review={review} cost={cost} settings={costSettings} />
       <p className="text-xs text-slate-500">Estimate only: verify quantities before ordering.</p>

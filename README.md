@@ -297,3 +297,22 @@ Deleting a project deletes its outcomes and feedback.
 - **Encryption in transit**: in production the gateway redirects HTTP to HTTPS and sends HSTS
   (`FORCE_HTTPS=false` only if TLS is fully handled in front of it). Use TLS to MongoDB
   (`mongodb+srv://` or `?tls=true`). Calls to Anthropic and Resend use HTTPS.
+
+## Additional materials (PRD 4.15)
+
+- **Product forms** in the library: tiles (grid count), planks (wood, laminate, vinyl plank: area
+  + 8% allowance, 15% diagonal, then boxes) and rolls (carpet, sheet vinyl: drops across the room
+  each 100 mm longer for trimming, whichever direction needs less, bought by the running metre).
+  Rolls are priced per running metre, m² or sq ft.
+- **Walls & doors** per room: doors and windows, wall tiling up to a height (whole perimeter or a
+  given length, e.g. a backsplash), its own wall tile or the project default. Counted on a grid
+  per wall, tile turned whichever way needs fewer; only tiles certain to fall inside an opening are
+  taken off.
+- **Skirting**: perimeter minus door widths, as strips cut from the floor tile or ready-made
+  pieces. Rooms with tiled walls are left out unless chosen.
+- **Sundries**: adhesive (4–6 kg/m² by tile size, 3.5 on walls, or your rate), grout
+  ((L+W)/(L×W) × joint × depth × 1.6) and spacers, rounded up to packs with a waste allowance.
+- **Suggestions by room type**: anti-skid floors for toilets and balconies, tiled bathroom walls,
+  a kitchen backsplash, no wood or carpet in wet rooms. Applied only when the user clicks.
+- Engine: `backend/app/engine/extras.py`; service: `backend/app/services/extras.py`. Everything
+  flows into costs, the PDF, the Excel workbook and the shopping list.

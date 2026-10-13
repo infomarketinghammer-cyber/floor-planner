@@ -7,6 +7,7 @@ from enum import StrEnum
 from pydantic import BaseModel, Field, field_serializer
 
 from app.engine.units import LengthUnit
+from app.schemas.material import ProductKind
 
 
 class TileType(StrEnum):
@@ -32,6 +33,11 @@ class TileMaterial(StrEnum):
     PORCELAIN = "porcelain"
     NATURAL_STONE = "natural_stone"
     MOSAIC = "mosaic"
+    # Other flooring (PRD 4.15)
+    WOOD = "wood"
+    LAMINATE = "laminate"
+    VINYL = "vinyl"
+    CARPET = "carpet"
     OTHER = "other"
 
 
@@ -50,9 +56,13 @@ TILE_SIZE_UNITS = (LengthUnit.MM, LengthUnit.CM, LengthUnit.M, LengthUnit.IN, Le
 
 
 class TileInput(BaseModel):
-    """Create/update a tile. Sizes are text in `size_unit` (or with their own marks: 24", 2')."""
+    """Create/update a tile. Sizes are text in `size_unit` (or with their own marks: 24", 2').
+
+    For a roll (carpet, sheet vinyl), `width` is the roll width and `length` the roll length;
+    tiles per box doesn't apply."""
 
     name: str = Field(min_length=1, max_length=120)
+    kind: ProductKind = ProductKind.TILE
     length: str = Field(min_length=1, max_length=20)
     width: str = Field(min_length=1, max_length=20)
     size_unit: LengthUnit = LengthUnit.MM
@@ -78,6 +88,7 @@ class TileOut(BaseModel):
     width_mm: Decimal
     size_unit: LengthUnit
     size_label: str  # e.g. "600 × 600 mm", "2 × 2 ft"
+    kind: ProductKind
     thickness_mm: Decimal | None
     tiles_per_box: int
     tile_area_sqm: float

@@ -57,9 +57,9 @@ export function attentionReasons(project: Project): string[] {
   return reasons
 }
 
-const PRICE_BASIS_LABELS = { box: 'box', tile: 'tile', sqft: 'sq ft', sqm: 'm²' } as const
+const PRICE_BASIS_LABELS = { box: 'box', tile: 'tile', sqft: 'sq ft', sqm: 'm²', lm: 'm' } as const
 
-/** "52 / sq ft". Currency formatting arrives with cost estimation (PRD 4.10). */
+/** "52 / sq ft". Shown without a currency symbol, as the price was entered. */
 export function formatPrice(price: { amount: string; basis: keyof typeof PRICE_BASIS_LABELS } | null): string {
   if (!price) return '–'
   return `${numberFormat.format(Number(price.amount))} / ${PRICE_BASIS_LABELS[price.basis]}`

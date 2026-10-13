@@ -1,12 +1,16 @@
 """Material assignment (PRD 4.6): project defaults, per-room overrides, exclusions, skipping."""
 
 import uuid
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, status
+from pymongo import ReturnDocument
 
 from app.api.deps import CurrentUser
-from app.api.v1.rooms import _CHANGED_ELSEWHERE, _replace_rooms, _rooms
+from app.api.v1.rooms import _CHANGED_ELSEWHERE, _replace_rooms, _rooms, rooms_out
+from app.db.mongo import get_db
 from app.engine.dimensions import DimensionError, parse_length
+from app.schemas.extras import ExtrasSettings, ExtrasSettingsIn, Opening, RoomWallsIn, WallTiling
 from app.schemas.material import (
     MATERIAL_FIELDS,
     DefaultMaterialIn,
@@ -16,8 +20,11 @@ from app.schemas.material import (
     RoomsMaterialIn,
 )
 from app.schemas.project import RoomsOut
-from app.services.materials import load_tile_ref
+from app.services.extras import extras_settings
+from app.services.materials import load_tile_ref, project_default
 from app.services.projects import get_project_or_404
+from app.services.review import review_state
+from app.services.suggestions import SuggestionOut, suggestions
 
 router = APIRouter(prefix="/projects/{project_id}", tags=["materials"])
 
@@ -124,3 +131,98 @@ async def set_exclusions(
             )
     room.exclusions = exclusions
     return await _replace_rooms(project, rooms)
+
+
+# --- Additional materials (PRD 4.15) ------------------------------------------------------------
+
+
+def _length(text: str, unit, label: str):
+    try:
+        return parse_length(text, unit)
+    except DimensionError as e:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"{label}: {e}") from None
+
+
+@router.put("/rooms/{room_id}/walls", response_model=RoomsOut)
+async def set_room_walls(
+    project_id: str, room_id: str, body: RoomWallsIn, user: CurrentUser
+) -> RoomsOut:
+    """A room's doors and windows, wall tiling and skirting choice. Undoable like any room edit."""
+    project = await get_project_or_404(user, project_id)
+    _check_version(project, body.version)
+    rooms = _rooms(project)
+    room = next((r for r in rooms if r.id == room_id), None)
+    if room is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Room not found")
+
+    room.openings = [
+        Opening(
+            id=uuid.uuid4().hex[:8],
+            kind=o.kind,
+            label=o.label.strip(),
+            width_mm=_length(o.width, o.unit, o.label or "Opening width"),
+            height_mm=_length(o.height, o.unit, o.label or "Opening height"),
+            quantity=o.quantity,
+            unit=o.unit,
+        )
+        for o in body.openings
+    ]
+    if body.walls is None:
+        room.walls = None
+    else:
+        w = body.walls
+        room.walls = WallTiling(
+            height_mm=_length(w.height, w.unit, "Tiling height"),
+            tile=await load_tile_ref(w.tile_id, user, project) if w.tile_id else None,
+            breakage_pct=w.breakage_pct,
+            length_mm=_length(w.length, w.unit, "Wall length") if w.length else None,
+            price=w.price,
+        )
+    room.skirting = body.skirting
+    return await _replace_rooms(project, rooms)
+
+
+@router.put("/extras/settings", response_model=RoomsOut)
+async def set_extras_settings(
+    project_id: str, body: ExtrasSettingsIn, user: CurrentUser
+) -> RoomsOut:
+    """Default wall tile, skirting and sundries. Like cost settings, not a room change: it
+    doesn't bump the rooms version or add an undo step."""
+    project = await get_project_or_404(user, project_id)
+    settings = ExtrasSettings(
+        wall_tile=await load_tile_ref(body.wall_tile_id, user, project)
+        if body.wall_tile_id
+        else None,
+        wall_breakage_pct=body.wall_breakage_pct,
+        wall_price=body.wall_price,
+        skirting=body.skirting,
+        sundries=body.sundries,
+    )
+    doc = await get_db().projects.find_one_and_update(
+        {"_id": project["_id"]},
+        {"$set": {"extras_settings": settings.model_dump(), "updated_at": datetime.now(UTC)}},
+        return_document=ReturnDocument.AFTER,
+    )
+    return rooms_out(doc)
+
+
+@router.get("/suggestions", response_model=list[SuggestionOut])
+async def room_suggestions(project_id: str, user: CurrentUser) -> list[SuggestionOut]:
+    """Suggested tiles and wall tiling by room type, each with an action to apply."""
+    project = await get_project_or_404(user, project_id)
+    tiles = [
+        {**t, "id": str(t["_id"])}
+        async for t in get_db()
+        .tiles.find(
+            {
+                "archived": {"$ne": True},
+                "$or": [
+                    {"scope": "catalog"},
+                    {"owner_id": {"$in": [user["_id"], project["owner_id"]]}},
+                ],
+            }
+        )
+        .sort("name", 1)
+    ]
+    state = review_state(project)
+    return suggestions(state.rooms, project_default(project), extras_settings(project), tiles)

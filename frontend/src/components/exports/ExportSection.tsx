@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { api } from '../../api/client.ts'
 import type { Estimate } from '../../api/types.ts'
-import { plural, useAreaUnit } from '../../lib/format.ts'
+import { useAreaUnit } from '../../lib/format.ts'
+import { shoppingLines, shoppingText } from '../../lib/shopping.ts'
 import { Button, ErrorText } from '../ui.tsx'
 
 type FileKind = 'report.pdf' | 'estimate.xlsx' | 'shopping-list.pdf'
@@ -11,17 +12,6 @@ const FILES: { kind: FileKind; label: string; note: string }[] = [
   { kind: 'estimate.xlsx', label: 'Excel workbook', note: 'Live formulas: edit a number and totals update' },
   { kind: 'shopping-list.pdf', label: 'Shopping list PDF', note: 'Tile types and boxes only' },
 ]
-
-const boxes = (n: number) => `${n} ${n === 1 ? 'box' : 'boxes'}`
-
-/** Plain text for pasting into a message to a supplier. */
-function shoppingText(estimate: Estimate): string {
-  const lines = estimate.tiles.map(
-    (t) => `- ${t.tile.size_label} ${t.tile.name}: ${boxes(t.boxes)} (${t.tiles_bought} tiles, ${t.tile.tiles_per_box} per box)`,
-  )
-  const total = estimate.tiles.reduce((n, t) => n + t.boxes, 0)
-  return [...lines, '', `Total: ${boxes(total)}`, 'Estimate only: verify quantities before ordering.'].join('\n')
-}
 
 function save({ blob, filename }: { blob: Blob; filename: string }) {
   const url = URL.createObjectURL(blob)
@@ -49,7 +39,7 @@ export function ExportSection({
   const [downloading, setDownloading] = useState<FileKind | null>(null)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
-  const totalBoxes = estimate.tiles.reduce((n, t) => n + t.boxes, 0)
+  const lines = shoppingLines(estimate)
 
   async function download(kind: FileKind) {
     setDownloading(kind)
@@ -107,22 +97,23 @@ export function ExportSection({
           </button>
         </div>
         <ul className="divide-y divide-slate-100">
-          {estimate.tiles.map((t) => (
-            <li key={t.tile.id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
-              <span className="min-w-0">
-                <span className="font-medium">{t.tile.size_label}</span> <span className="text-slate-500">{t.tile.name}</span>
-              </span>
-              <span className="whitespace-nowrap text-right tabular-nums">
-                <span className="font-semibold">{boxes(t.boxes)}</span>
-                <span className="block text-xs text-slate-500">{t.tiles_bought} tiles</span>
-              </span>
+          {lines.map((l, i) => (
+            <li key={l.key}>
+              {(i === 0 || lines[i - 1].section !== l.section) && lines.length > estimate.tiles.length && (
+                <p className="bg-slate-50 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">{l.section}</p>
+              )}
+              <div className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
+                <span className="min-w-0">
+                  <span className="font-medium">{l.size}</span> <span className="text-slate-500">{l.name}</span>
+                </span>
+                <span className="whitespace-nowrap text-right tabular-nums">
+                  <span className="font-semibold">{l.quantity}</span>
+                  <span className="block text-xs text-slate-500">{l.detail}</span>
+                </span>
+              </div>
             </li>
           ))}
         </ul>
-        <p className="flex justify-between border-t border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold">
-          <span>Total ({plural(estimate.tiles.length, 'tile type')})</span>
-          <span className="tabular-nums">{boxes(totalBoxes)}</span>
-        </p>
         <EmailForm projectId={projectId} onSent={onExported} />
       </div>
     </section>

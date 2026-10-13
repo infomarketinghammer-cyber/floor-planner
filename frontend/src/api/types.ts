@@ -89,7 +89,9 @@ export interface ExtractionResult {
 
 // --- Material assignment (PRD 4.6) ---------------------------------------------------------
 export type Layout = 'straight' | 'diagonal'
-export type PriceBasis = 'box' | 'tile' | 'sqft' | 'sqm'
+export type PriceBasis = 'box' | 'tile' | 'sqft' | 'sqm' | 'lm' // lm: per running metre (roll goods)
+/** How a flooring product is sold and laid (PRD 4.15). */
+export type ProductKind = 'tile' | 'plank' | 'roll'
 export type MaterialField = 'tile' | 'layout' | 'breakage_pct' | 'price'
 
 export interface Price {
@@ -104,6 +106,10 @@ export interface TileRef {
   length_mm: string
   width_mm: string
   tiles_per_box: number
+  kind?: ProductKind // missing on snapshots taken before PRD 4.15: a tile
+  thickness_mm?: string | null
+  tile_type?: string | null
+  material?: string | null
 }
 
 /** A room's own settings; null = use the project default. */
@@ -169,6 +175,9 @@ export interface Room {
   exclusions: Exclusion[]
   area_mm2: string | null // odd-shaped rooms known only by area
   extracted: ExtractedValues | null // what the plan reader read; never changes
+  openings: Opening[] // doors and windows (PRD 4.15)
+  walls: WallTiling | null // null: walls not tiled
+  skirting: boolean | null // null: follow the project setting
 }
 
 /** What extraction read for a room, kept through later edits (PRD 4.13). */
@@ -221,6 +230,7 @@ export interface RoomsState {
   materials: MaterialsSummary
   estimate: Estimate // recalculated on every change
   cost_settings: CostSettings
+  extras_settings: ExtrasSettings
   cost: Cost | null // null until the quantities are ready
 }
 
@@ -244,12 +254,23 @@ export interface RoomImportResult {
 // --- Tile library (PRD 4.5) ---------------------------------------------------------------
 export type TileType = 'floor' | 'wall' | 'floor_wall' | 'anti_skid' | 'outdoor'
 export type TileFinish = 'matt' | 'glossy' | 'satin' | 'polished' | 'textured' | 'other'
-export type TileMaterial = 'vitrified' | 'ceramic' | 'porcelain' | 'natural_stone' | 'mosaic' | 'other'
+export type TileMaterial =
+  | 'vitrified'
+  | 'ceramic'
+  | 'porcelain'
+  | 'natural_stone'
+  | 'mosaic'
+  | 'wood'
+  | 'laminate'
+  | 'vinyl'
+  | 'carpet'
+  | 'other'
 export type TileRegion = 'india' | 'imperial'
 export type TileSizeUnit = 'mm' | 'cm' | 'm' | 'in' | 'ft'
 
 export interface Tile {
   id: string
+  kind: ProductKind
   scope: 'catalog' | 'user'
   owner_id: string | null
   name: string
@@ -278,6 +299,7 @@ export interface Tile {
 
 export interface TileInput {
   name: string
+  kind: ProductKind
   length: string
   width: string
   size_unit: TileSizeUnit
@@ -301,7 +323,10 @@ export interface RoomEstimate {
   room_type: string // e.g. "Bedroom", "Bathroom & toilet"
   tile: TileRef
   layout: Layout
-  method: 'grid' | 'area'
+  method: 'grid' | 'area' | 'roll'
+  kind: ProductKind
+  linear_mm: string | null // roll goods: running length to buy (boxes are 0)
+  drops: number | null
   method_reason: string
   allowance_pct: string
   breakage_pct: string
@@ -343,6 +368,7 @@ export interface TileTotal {
   tiles_bought: number
   bought_area_mm2: string
   boxes_if_pooled: number
+  linear_mm: string | null // roll goods
 }
 
 export interface Estimate {
@@ -366,6 +392,7 @@ export interface Estimate {
   } | null
   assumptions: Assumption[]
   offcut_note: string
+  extras: ExtrasResult | null // wall tiles, skirting, sundries (PRD 4.15)
 }
 
 // --- Cost estimate (PRD 4.10) ---------------------------------------------------------------
@@ -416,6 +443,7 @@ export interface Cost {
   unpriced_rooms: number
   rooms: RoomCost[]
   materials: string | null
+  extras: ExtraCost[] // priced wall tiles, skirting, sundries
   lines: CostLineResult[]
   tax: { label: string; pct: string; base: string; amount: string } | null
   total: string
@@ -512,4 +540,138 @@ export interface PrivacyInfo {
   email_provider: string | null
   retention: string
   max_upload_mb: number
+}
+
+// --- Additional materials (PRD 4.15) ---------------------------------------------------------------
+export type OpeningKind = 'door' | 'window' | 'other'
+
+export interface Opening {
+  id: string
+  kind: OpeningKind
+  label: string
+  width_mm: string
+  height_mm: string
+  quantity: number
+  unit: LengthUnit
+}
+
+export interface WallTiling {
+  height_mm: string
+  tile: TileRef | null // null: the project's default wall tile
+  breakage_pct: string | null
+  length_mm: string | null // null: the whole perimeter
+  price: Price | null
+}
+
+export interface SkirtingSettings {
+  enabled: boolean
+  height_mm: string
+  source: 'floor_tile' | 'pieces'
+  piece_name: string
+  piece_length_mm: string
+  pieces_per_box: number | null
+  price: Price | null
+  breakage_pct: string
+  skip_tiled_walls: boolean
+}
+
+export interface SundriesSettings {
+  enabled: boolean
+  adhesive_rate_kg_m2: string | null
+  adhesive_bag_kg: string
+  adhesive_bag_price: string | null
+  grout_joint_mm: string
+  grout_depth_mm: string | null
+  grout_pack_kg: string
+  grout_pack_price: string | null
+  spacers_per_tile: string
+  spacer_pack: number
+  spacer_pack_price: string | null
+  waste_pct: string
+}
+
+export interface ExtrasSettings {
+  wall_tile: TileRef | null
+  wall_breakage_pct: string
+  wall_price: Price | null
+  skirting: SkirtingSettings
+  sundries: SundriesSettings
+}
+
+export interface WallEstimate {
+  room_id: string
+  name: string
+  tile: TileRef
+  height_mm: string
+  length_mm: string
+  wall_area_mm2: string
+  openings_area_mm2: string
+  net_area_mm2: string
+  rows: number
+  tiles_needed: number
+  buffer_tiles: number
+  tiles_required: number
+  boxes: number
+  tiles_bought: number
+  extra_area_mm2: string
+}
+
+export interface SkirtingProduct {
+  label: string
+  tile: TileRef | null
+  piece_length_mm: string
+  strips_per_tile: number | null
+  pieces: number
+  tiles: number | null
+  boxes: number | null
+  run_mm: string
+}
+
+export interface ExtrasResult {
+  walls: WallEstimate[]
+  wall_tiles: { tile: TileRef; rooms: number; net_area_mm2: string; tiles_required: number; boxes: number; tiles_bought: number }[]
+  skirting: {
+    source: 'floor_tile' | 'pieces'
+    height_mm: string
+    rooms: { room_id: string; name: string; perimeter_mm: string; doors_mm: string; run_mm: string; pieces: number }[]
+    products: SkirtingProduct[]
+    run_mm: string
+  } | null
+  sundries: {
+    key: 'adhesive' | 'grout' | 'spacers'
+    label: string
+    quantity: string
+    unit: 'kg' | 'pcs'
+    pack_size: string
+    waste_pct: string
+    packs: number
+    area_mm2: string
+    basis: string
+  }[]
+  warnings: string[]
+}
+
+export interface ExtraCost {
+  key: string
+  label: string
+  quantity: string
+  unit: string
+  unit_price: string
+  amount: string
+}
+
+export interface Suggestion {
+  key: string
+  severity: 'suggest' | 'warn'
+  title: string
+  detail: string
+  room_ids: string[]
+  room_names: string[]
+  action: {
+    type: 'set_tile' | 'tile_walls'
+    tile_id: string | null
+    tile_name: string | null
+    height_mm: string | null
+    needs_length: boolean
+  } | null
 }

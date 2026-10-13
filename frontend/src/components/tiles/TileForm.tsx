@@ -1,5 +1,14 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
-import type { Tile, TileFinish, TileInput, TileMaterial, TileRegion, TileSizeUnit, TileType } from '../../api/types.ts'
+import type {
+  ProductKind,
+  Tile,
+  TileFinish,
+  TileInput,
+  TileMaterial,
+  TileRegion,
+  TileSizeUnit,
+  TileType,
+} from '../../api/types.ts'
 import { formatArea, type AreaUnit } from '../../lib/format.ts'
 import { Button, ErrorText } from '../ui.tsx'
 
@@ -24,7 +33,17 @@ export const MATERIAL_LABELS: Record<TileMaterial, string> = {
   porcelain: 'Porcelain',
   natural_stone: 'Natural stone',
   mosaic: 'Mosaic',
+  wood: 'Wood',
+  laminate: 'Laminate',
+  vinyl: 'Vinyl',
+  carpet: 'Carpet',
   other: 'Other',
+}
+/** How the product is sold and laid (PRD 4.15). */
+export const KIND_LABELS: Record<ProductKind, string> = {
+  tile: 'Tiles',
+  plank: 'Planks (wood, laminate, vinyl)',
+  roll: 'Roll (carpet, sheet vinyl)',
 }
 export const REGION_LABELS: Record<TileRegion, string> = { india: 'India (metric)', imperial: 'Imperial (in/ft)' }
 
@@ -46,6 +65,7 @@ function previewMm(text: string, unit: TileSizeUnit): number | null {
 function emptyInput(defaultUnit: TileSizeUnit): TileInput {
   return {
     name: '',
+    kind: 'tile',
     length: '',
     width: '',
     size_unit: defaultUnit,
@@ -66,6 +86,7 @@ function fromTile(tile: Tile): TileInput {
   const per = MM_PER[tile.size_unit]
   return {
     name: tile.name,
+    kind: tile.kind,
     length: trim(Number(tile.length_mm) / per),
     width: trim(Number(tile.width_mm) / per),
     size_unit: tile.size_unit,
@@ -136,11 +157,14 @@ export function TileFormDialog({
     event.preventDefault()
     setError('')
     setSaving(true)
-    const data: TileInput = {
-      ...form,
-      tiles_per_box: packBy === 'count' ? form.tiles_per_box : null,
-      coverage_per_box_sqm: packBy === 'coverage' && coverageSqm ? trim(coverageSqm, 4) : null,
-    }
+    const data: TileInput =
+      form.kind === 'roll'
+        ? { ...form, tiles_per_box: null, coverage_per_box_sqm: null } // a roll has no pack size
+        : {
+            ...form,
+            tiles_per_box: packBy === 'count' ? form.tiles_per_box : null,
+            coverage_per_box_sqm: packBy === 'coverage' && coverageSqm ? trim(coverageSqm, 4) : null,
+          }
     try {
       await onSave(data, !tile && isAdmin && catalog)
     } catch (err) {
@@ -179,15 +203,41 @@ export function TileFormDialog({
           />
         </Field>
 
+        <fieldset>
+          <legend className="mb-1 text-sm font-medium text-slate-700">Product</legend>
+          <div role="group" aria-label="Product" className="inline-flex flex-wrap rounded-md border border-slate-300 bg-white p-0.5 text-sm">
+            {(Object.keys(KIND_LABELS) as ProductKind[]).map((k) => (
+              <button
+                key={k}
+                type="button"
+                aria-pressed={form.kind === k}
+                onClick={() => set('kind', k)}
+                className={`rounded px-3 py-1 ${form.kind === k ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+              >
+                {KIND_LABELS[k]}
+              </button>
+            ))}
+          </div>
+          {form.kind !== 'tile' && (
+            <p className="mt-1 text-xs text-slate-500">
+              {form.kind === 'plank'
+                ? 'Planks are worked out by area plus an allowance for cuts at the row ends, then boxes.'
+                : 'Rolls are worked out as strips across the room, bought by the running metre.'}
+            </p>
+          )}
+        </fieldset>
+
         <fieldset className="grid gap-3 sm:grid-cols-[1fr_auto_1fr_8rem_8rem]">
-          <legend className="mb-1 text-sm font-medium text-slate-700">Size</legend>
+          <legend className="mb-1 text-sm font-medium text-slate-700">
+            {form.kind === 'roll' ? 'Roll length × roll width' : 'Size'}
+          </legend>
           <input
             value={form.length}
             onChange={(e) => set('length', e.target.value)}
             required
             maxLength={20}
-            aria-label="Tile length"
-            placeholder="Length"
+            aria-label={form.kind === 'roll' ? 'Roll length' : 'Tile length'}
+            placeholder={form.kind === 'roll' ? 'Roll length' : 'Length'}
             className={inputClass}
           />
           <span className="self-center text-center text-slate-400">×</span>
@@ -196,8 +246,8 @@ export function TileFormDialog({
             onChange={(e) => set('width', e.target.value)}
             required
             maxLength={20}
-            aria-label="Tile width"
-            placeholder="Width"
+            aria-label={form.kind === 'roll' ? 'Roll width' : 'Tile width'}
+            placeholder={form.kind === 'roll' ? 'Roll width' : 'Width'}
             className={inputClass}
           />
           <select
@@ -222,12 +272,13 @@ export function TileFormDialog({
           />
         </fieldset>
 
+        {form.kind !== 'roll' && (
         <fieldset className="space-y-2">
           <legend className="text-sm font-medium text-slate-700">Pack size</legend>
           <div className="flex flex-wrap gap-4 text-sm">
             <label className="flex items-center gap-1.5">
               <input type="radio" checked={packBy === 'count'} onChange={() => setPackBy('count')} className="accent-brand-600" />
-              Tiles per box
+              {form.kind === 'plank' ? 'Planks per box' : 'Tiles per box'}
             </label>
             <label className="flex items-center gap-1.5">
               <input
@@ -271,6 +322,7 @@ export function TileFormDialog({
               : 'Enter a size and pack to see the coverage.'}
           </p>
         </fieldset>
+        )}
 
         <div className="grid gap-3 sm:grid-cols-3">
           <Field label="Type">

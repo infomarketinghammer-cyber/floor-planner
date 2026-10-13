@@ -2,6 +2,10 @@ import type {
   AdminStats,
   Blueprint,
   CostSettings,
+  OpeningKind,
+  SkirtingSettings,
+  Suggestion,
+  SundriesSettings,
   AdminAccuracy,
   EvalEntry,
   Feedback,
@@ -203,6 +207,36 @@ export const api = {
       },
       version: number,
     ) => request<RoomsState>(`/projects/${projectId}/rooms/materials`, json('POST', { ...data, version })),
+    /** Doors and windows, wall tiling and skirting for one room (PRD 4.15). Undoable. */
+    setRoomWalls: (
+      projectId: string,
+      roomId: string,
+      data: {
+        openings: { kind: OpeningKind; label: string; width: string; height: string; quantity: number; unit: LengthUnit }[]
+        walls: {
+          height: string
+          unit: LengthUnit
+          tile_id: string | null
+          breakage_pct: string | null
+          length: string | null
+          price: Price | null
+        } | null
+        skirting: boolean | null
+      },
+      version: number,
+    ) => request<RoomsState>(`/projects/${projectId}/rooms/${roomId}/walls`, json('PUT', { ...data, version })),
+    /** Default wall tile, skirting and sundries. Not an undo step. */
+    setExtras: (
+      projectId: string,
+      data: {
+        wall_tile_id: string | null
+        wall_breakage_pct: string
+        wall_price: Price | null
+        skirting: SkirtingSettings
+        sundries: SundriesSettings
+      },
+    ) => request<RoomsState>(`/projects/${projectId}/extras/settings`, json('PUT', data)),
+    suggestions: (projectId: string) => request<Suggestion[]>(`/projects/${projectId}/suggestions`),
     setExclusions: (
       projectId: string,
       roomId: string,

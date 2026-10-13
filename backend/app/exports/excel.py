@@ -93,7 +93,8 @@ def _rooms_sheet(ws: Worksheet, data: ExportData, money: str) -> int:
             r.name,
             r.floor or "",
             data.size(r),
-            f"{r.tile.size_label} · {r.tile.name}",
+            f"{r.tile.size_label} · {r.tile.name}"
+            + (f" (roll: {float(r.linear_mm) / 1000:.2f} m)" if r.kind == "roll" else ""),
             float(area_value(r.usable_area_mm2, data.area_unit)),
             r.tiles_needed,
             r.buffer_tiles,
@@ -103,13 +104,17 @@ def _rooms_sheet(ws: Worksheet, data: ExportData, money: str) -> int:
             f"=K{n}*J{n}",
         ]
         if data.priced:
-            price = costs[r.room_id].price
-            # The exact price per box (a per-sq-ft price rarely comes to whole cents), so the
-            # cost matches the app to the cent.
-            values += [
-                float(price_per_box(price, r.tile)) if price else None,
-                f'=IF(M{n}="","",ROUND(K{n}*M{n},2))',
-            ]
+            c = costs[r.room_id]
+            if r.kind == "roll":
+                # Roll goods are priced per metre or area, not per box: the cost is a value.
+                values += [None, float(c.cost) if c.cost is not None else None]
+            else:
+                # The exact price per box (a per-sq-ft price rarely comes to whole cents), so
+                # the cost matches the app to the cent.
+                values += [
+                    float(price_per_box(c.price, r.tile)) if c.price else None,
+                    f'=IF(M{n}="","",ROUND(K{n}*M{n},2))',
+                ]
         _row(ws, n, values)
         ws.cell(n, 6).number_format = AREA_FORMAT
         if data.priced:
@@ -178,6 +183,20 @@ def _costs_sheet(ws: Worksheet, data: ExportData, money: str, rooms_total: int) 
                 None,
                 None,
                 f"=Rooms!N{rooms_total}",
+                "Yes" if settings.tax_materials else "No",
+            ],
+        )
+        n += 1
+    for x in cost.extras:
+        _row(
+            ws,
+            n,
+            [
+                x.label,
+                f"per {x.unit.rstrip('s')}",
+                float(x.unit_price),
+                float(x.quantity),
+                f"=ROUND(C{n}*D{n},2)",
                 "Yes" if settings.tax_materials else "No",
             ],
         )
@@ -252,6 +271,119 @@ def _costs_sheet(ws: Worksheet, data: ExportData, money: str, rooms_total: int) 
         ws.cell(n + 2, 5).font = BOLD
 
 
+def _extras_sheet(ws: Worksheet, data: ExportData) -> None:
+    """Wall tiles (live box formulas), skirting, and sundries (live pack formulas)."""
+    x = data.estimate.extras
+    _title(ws, "Walls and extras", data)
+    unit = AREA_LABELS[data.area_unit]
+    labels = [
+        "Room / item",
+        "Tile / product",
+        "Height (m)",
+        "Length (m)",
+        f"Net area ({unit})",
+        "Tiles needed",
+        "Buffer tiles",
+        "Tiles required",
+        "Per box / pack",
+        "Boxes / packs",
+    ]
+    _header(ws, labels, [22, 30, 10, 10, 14, 12, 12, 13, 13, 13])
+    n = FIRST_ROW
+    if x.walls:
+        first = n
+        for w in x.walls:
+            _row(
+                ws,
+                n,
+                [
+                    w.name,
+                    f"{w.tile.size_label} · {w.tile.name}",
+                    float(w.height_mm) / 1000,
+                    float(w.length_mm) / 1000,
+                    float(area_value(w.net_area_mm2, data.area_unit)),
+                    w.tiles_needed,
+                    w.buffer_tiles,
+                    f"=F{n}+G{n}",
+                    w.tile.tiles_per_box,
+                    f"=ROUNDUP(H{n}/I{n},0)",
+                ],
+            )
+            ws.cell(n, 5).number_format = AREA_FORMAT
+            n += 1
+        ws.cell(n, 1, "Wall tiles total")
+        for col in ("E", "F", "G", "H", "J"):
+            ws[f"{col}{n}"] = f"=SUM({col}{first}:{col}{n - 1})"
+        ws[f"E{n}"].number_format = AREA_FORMAT
+        _total_style(ws, n, len(labels))
+        n += 2
+    if x.skirting:
+        for p in x.skirting.products:
+            _row(
+                ws,
+                n,
+                [
+                    "Skirting",
+                    p.label,
+                    float(x.skirting.height_mm) / 1000,
+                    float(p.run_mm) / 1000,
+                    None,
+                    p.pieces,
+                    None,
+                    p.tiles,
+                    p.strips_per_tile or None,
+                    p.boxes,
+                ],
+            )
+            n += 1
+        ws.cell(
+            n, 1, "Skirting pieces are strips or ready-made lengths, breakage included."
+        ).font = MUTED
+        n += 2
+    if x.sundries:
+        _row(
+            ws,
+            n,
+            [
+                "Sundry",
+                "Basis",
+                None,
+                None,
+                "Area (m²)",
+                "Quantity",
+                "Unit",
+                "Waste %",
+                "Pack size",
+                "Packs",
+            ],
+        )
+        for col in range(1, len(labels) + 1):
+            ws.cell(n, col).font = BOLD
+        n += 1
+        for item in x.sundries:
+            _row(
+                ws,
+                n,
+                [
+                    item.label,
+                    item.basis,
+                    None,
+                    None,
+                    float(item.area_mm2) / 1_000_000,
+                    float(item.quantity),
+                    item.unit,
+                    float(item.waste_pct),
+                    float(item.pack_size),
+                    f"=ROUNDUP(F{n}*(1+H{n}/100)/I{n},0)",
+                ],
+            )
+            ws.cell(n, 5).number_format = AREA_FORMAT
+            n += 1
+    for w in x.warnings:
+        n += 1
+        ws.cell(n, 1, w).font = MUTED
+
+
 def _assumptions_sheet(ws: Worksheet, data: ExportData) -> None:
     _title(ws, "How the numbers were worked out", data)
     _header(ws, ["Topic", "Assumption"], [22, 110])
@@ -270,6 +402,8 @@ def render_workbook(data: ExportData) -> bytes:
     money = excel_money_format(data.settings.currency, data.settings.locale)
     rooms_total = _rooms_sheet(wb.active, data, money)
     _shopping_sheet(wb.create_sheet("Shopping list"), data, rooms_total - 1)
+    if data.estimate.extras:
+        _extras_sheet(wb.create_sheet("Walls and extras"), data)
     if data.has_costs:
         _costs_sheet(wb.create_sheet("Costs"), data, money, rooms_total)
     _assumptions_sheet(wb.create_sheet("Assumptions"), data)

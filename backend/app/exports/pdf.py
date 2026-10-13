@@ -160,33 +160,33 @@ def _header(data: ExportData, s: _Styles, title: str) -> list:
 
 
 def _shopping_table(data: ExportData, s: _Styles, width: float) -> Table:
-    rows: list[list] = [["Ref", "Tile", "Size", "Rooms", "Per box", "Boxes", "Tiles"]]
-    for item in data.shopping:
-        t = item.tile
+    """Everything to buy: floor products, wall tiles, skirting and sundries."""
+    rows: list[list] = [["Ref", "Item", "Size", "Buy", "Detail"]]
+    section = None
+    styles = []
+    for line in data.shopping_lines:
+        if line.section != section and len(data.shopping_lines) > len(data.shopping):
+            section = line.section
+            styles.append(len(rows))
+            rows.append([line.section, "", "", "", ""])
         rows.append(
-            [
-                item.ref,
-                _p(t.tile.name, s.cell),
-                t.tile.size_label,
-                t.rooms,
-                t.tile.tiles_per_box,
-                t.boxes,
-                t.tiles_bought,
-            ]
+            [line.ref, _p(line.name, s.cell), line.size, line.quantity, _p(line.detail, s.small)]
         )
-    rows.append(
-        [
-            "",
-            "Total",
-            "",
-            "",
-            "",
-            sum(i.tile.boxes for i in data.shopping),
-            sum(i.tile.tiles_bought for i in data.shopping),
-        ]
-    )
-    widths = [0.07, 0.33, 0.2, 0.09, 0.1, 0.1, 0.11]
-    return _table(rows, [w * width for w in widths], s, right_from=3)
+    widths = [0.07, 0.3, 0.17, 0.14, 0.32]
+    table = _table(rows, [w * width for w in widths], s, right_from=3, total_rows=0)
+    for r in styles:
+        table.setStyle(
+            TableStyle(
+                [
+                    ("FONT", (0, r), (-1, r), s.bold, 8),
+                    ("TEXTCOLOR", (0, r), (-1, r), MUTED),
+                    ("SPAN", (0, r), (-1, r)),
+                ]
+            )
+        )
+    # Only the Buy column is a number-like value; keep the detail text left-aligned.
+    table.setStyle(TableStyle([("ALIGN", (4, 0), (4, -1), "LEFT")]))
+    return table
 
 
 def _pooling_note(data: ExportData) -> str | None:
@@ -226,15 +226,16 @@ def _master_table(data: ExportData, s: _Styles, width: float) -> Table:
             _p(r.floor or "–", s.cell),
             data.size(r),
             format_number(area_value(r.usable_area_mm2, data.area_unit), locale),
-            r.tiles_needed,
-            r.buffer_tiles,
-            r.boxes,
-            r.tiles_bought,
+            *(
+                ["–", "–", "–", f"{format_number(r.linear_mm / 1000, locale)} m"]
+                if r.kind == "roll"
+                else [r.tiles_needed, r.buffer_tiles, r.boxes, r.tiles_bought]
+            ),
         ]
         if data.priced:
             c = costs[r.room_id]
             row += [
-                data.money(c.price_per_box, symbols=sym),
+                data.money(c.price_per_box, symbols=sym) if c.price_per_box else "–",
                 data.money(c.cost, symbols=sym) if c.cost is not None else "No price",
             ]
         rows.append(row)
@@ -262,6 +263,66 @@ def _master_table(data: ExportData, s: _Styles, width: float) -> Table:
     return _table(rows, [w * width for w in widths], s, right_from=4)
 
 
+def _walls_table(data: ExportData, s: _Styles, width: float) -> Table:
+    x = data.estimate.extras
+    locale = data.settings.locale
+    unit = AREA_LABELS[data.area_unit]
+    rows: list[list] = [
+        ["Room", "Wall tile", "Height", "Length", f"Net area ({unit})", "Tiles", "Boxes"]
+    ]
+    for w in x.walls:
+        rows.append(
+            [
+                _p(w.name, s.cell),
+                _p(f"{w.tile.size_label} {w.tile.name}", s.cell),
+                f"{format_number(w.height_mm / 1000, locale)} m",
+                f"{format_number(w.length_mm / 1000, locale)} m",
+                format_number(area_value(w.net_area_mm2, data.area_unit), locale),
+                w.tiles_required,
+                w.boxes,
+            ]
+        )
+    rows.append(
+        [
+            "Total",
+            "",
+            "",
+            "",
+            format_number(area_value(sum(w.net_area_mm2 for w in x.walls), data.area_unit), locale),
+            sum(w.tiles_required for w in x.walls),
+            sum(w.boxes for w in x.walls),
+        ]
+    )
+    widths = [0.18, 0.3, 0.09, 0.09, 0.13, 0.1, 0.11]
+    return _table(rows, [w * width for w in widths], s, right_from=2)
+
+
+def _skirting_table(data: ExportData, s: _Styles, width: float) -> Table:
+    sk = data.estimate.extras.skirting
+    locale = data.settings.locale
+    rows: list[list] = [["Room", "Perimeter", "Doors", "Run", "Pieces"]]
+    for r in sk.rooms:
+        rows.append(
+            [
+                _p(r.name, s.cell),
+                f"{format_number(r.perimeter_mm / 1000, locale)} m",
+                f"{format_number(r.doors_mm / 1000, locale)} m",
+                f"{format_number(r.run_mm / 1000, locale)} m",
+                r.pieces,
+            ]
+        )
+    rows.append(
+        [
+            "Total",
+            "",
+            "",
+            f"{format_number(sk.run_mm / 1000, locale)} m",
+            sum(r.pieces for r in sk.rooms),
+        ]
+    )
+    return _table(rows, [w * width for w in (0.32, 0.17, 0.17, 0.17, 0.17)], s, right_from=1)
+
+
 def _cost_table(data: ExportData, s: _Styles, width: float) -> Table:
     cost = data.cost
     assert cost is not None
@@ -273,6 +334,14 @@ def _cost_table(data: ExportData, s: _Styles, width: float) -> Table:
                 "Tiles",
                 f"{cost.priced_rooms} rooms priced · boxes × price per box",
                 data.money(cost.materials, symbols=sym),
+            ]
+        )
+    for x in cost.extras:
+        rows.append(
+            [
+                _p(x.label, s.cell),
+                f"{x.quantity.normalize():f} {x.unit} × {data.money(x.unit_price, symbols=sym)}",
+                data.money(x.amount, symbols=sym),
             ]
         )
     for line in cost.lines:
@@ -363,7 +432,15 @@ def render_report(data: ExportData) -> bytes:
         )
     ]
 
-    shopping = [_p("Shopping list", s.h2), _shopping_table(data, s, width * 0.75)]
+    x = data.estimate.extras
+    if x and x.walls:
+        story += [_p("Wall tiles", s.h2), _walls_table(data, s, width * 0.85)]
+    if x and x.skirting and x.skirting.rooms:
+        story += [_p("Skirting", s.h2), _skirting_table(data, s, width * 0.6)]
+    if x and x.warnings:
+        story += [_p(w, s.small) for w in x.warnings]
+
+    shopping = [_p("Shopping list", s.h2), _shopping_table(data, s, width * 0.9)]
     if note := _pooling_note(data):
         shopping.append(_p(note, s.small))
     story.append(KeepTogether(shopping))

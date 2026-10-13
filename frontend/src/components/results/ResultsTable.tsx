@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import type { Cost, Estimate, ReviewRoom, RoomCost, RoomEstimate } from '../../api/types.ts'
+import { plural } from '../../lib/format.ts'
 import { formatMoney, type MoneyFormat } from '../../lib/money.ts'
 import { formatLength } from '../../lib/units.ts'
 
@@ -263,11 +264,13 @@ function ResultRow({
       </Td>
       {detailed && (
         <Td right>
-          {r.tiles_needed}
+          {r.kind === 'roll' ? '–' : r.tiles_needed}
           <Sub>
-            {r.method === 'grid'
-              ? `${r.columns} × ${r.rows}${r.excluded_tiles ? ` − ${r.excluded_tiles}` : ''}`
-              : `by area +${Number(r.allowance_pct)}%`}
+            {r.method === 'roll'
+              ? `${r.drops ? plural(r.drops, 'drop') : 'by area'}`
+              : r.method === 'grid'
+                ? `${r.columns} × ${r.rows}${r.excluded_tiles ? ` − ${r.excluded_tiles}` : ''}`
+                : `by area +${Number(r.allowance_pct)}%`}
           </Sub>
         </Td>
       )}
@@ -284,9 +287,17 @@ function ResultRow({
         </Td>
       )}
       <Td right strong>
-        {r.boxes}
+        {r.kind === 'roll' ? '–' : r.boxes}
       </Td>
-      <Td right>{r.tiles_bought}</Td>
+      <Td right>
+        {r.kind === 'roll' ? (
+          <>
+            {Number((Number(r.linear_mm) / 1000).toFixed(2))} m<Sub>of roll</Sub>
+          </>
+        ) : (
+          r.tiles_bought
+        )}
+      </Td>
       {detailed && (
         <Td right>
           {area(r.extra_area_mm2)}

@@ -33,6 +33,7 @@ from app.schemas.project import (
 )
 from app.services.cost import build_cost, cost_settings
 from app.services.estimate import build_estimate
+from app.services.extras import extras_settings
 from app.services.materials import (
     effective,
     exclusion_area_mm2,
@@ -66,7 +67,8 @@ def rooms_out(doc: dict) -> RoomsOut:
     state = review_state(doc)
     pu = state.plan_unit
     default = project_default(doc)
-    estimate = build_estimate(state, default)
+    extras = extras_settings(doc)
+    estimate = build_estimate(state, default, extras)
     settings = cost_settings(doc)
     return RoomsOut(
         version=doc.get("rooms_version") or 0,
@@ -85,7 +87,8 @@ def rooms_out(doc: dict) -> RoomsOut:
         materials=materials_summary(state.rooms, default, state.summary.ready),
         estimate=estimate,
         cost_settings=settings,
-        cost=build_cost(state, default, estimate, settings),
+        extras_settings=extras,
+        cost=build_cost(state, default, estimate, settings, extras),
         plan_unit=PlanUnitOut(
             unit=pu.unit,
             confirmed=pu.confirmed,

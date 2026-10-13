@@ -99,6 +99,14 @@ export function CostSection({
                   amount={m(cost.materials)}
                 />
               )}
+              {cost.extras.map((x) => (
+                <CostRow
+                  key={x.key}
+                  label={x.label}
+                  note={`${Number(x.quantity)} ${x.unit} × ${m(x.unit_price)}`}
+                  amount={m(x.amount)}
+                />
+              ))}
               {cost.lines.map((line) => (
                 <CostRow
                   key={line.id}

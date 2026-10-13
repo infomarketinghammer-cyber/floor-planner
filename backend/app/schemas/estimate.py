@@ -4,7 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from app.schemas.material import DecimalStr, Layout, TileRef
+from app.schemas.extras import ExtrasOut
+from app.schemas.material import DecimalStr, Layout, ProductKind, TileRef
 
 
 class RoomEstimateOut(BaseModel):
@@ -14,7 +15,11 @@ class RoomEstimateOut(BaseModel):
     room_type: str  # e.g. "Bedroom", "Bathroom & toilet" (for grouping, PRD 4.9)
     tile: TileRef
     layout: Layout
-    method: Literal["grid", "area"]
+    method: Literal["grid", "area", "roll"]
+    kind: ProductKind = ProductKind.TILE
+    # Roll goods only: roll to buy (boxes and tiles are 0) and how it's cut.
+    linear_mm: DecimalStr | None = None
+    drops: int | None = None
     method_reason: str  # plain-language: why this method was used
     allowance_pct: DecimalStr  # cutting allowance (area method only)
     breakage_pct: DecimalStr
@@ -60,6 +65,7 @@ class TileTotalOut(BaseModel):
     bought_area_mm2: DecimalStr
     # If leftovers from one room are used in another: tiles pooled, rounded to boxes once.
     boxes_if_pooled: int
+    linear_mm: DecimalStr | None = None  # roll goods: total running length to buy
 
 
 class EstimateTotalsOut(BaseModel):
@@ -85,3 +91,4 @@ class EstimateOut(BaseModel):
     totals: EstimateTotalsOut | None
     assumptions: list[Assumption]  # how the numbers were worked out (PRD 4.8); also used in exports
     offcut_note: str
+    extras: ExtrasOut | None = None  # wall tiles, skirting, sundries (PRD 4.15)

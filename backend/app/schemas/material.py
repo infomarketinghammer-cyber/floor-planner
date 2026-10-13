@@ -27,9 +27,18 @@ class Layout(StrEnum):
 
 class PriceBasis(StrEnum):
     BOX = "box"
-    TILE = "tile"
+    TILE = "tile"  # also "per piece" for planks and skirting pieces
     SQFT = "sqft"  # common for tiles in India
     SQM = "sqm"
+    LM = "lm"  # per running metre: roll goods (carpet, sheet vinyl)
+
+
+class ProductKind(StrEnum):
+    """How a flooring product is sold and laid (PRD 4.15)."""
+
+    TILE = "tile"  # counted on a grid, sold in boxes
+    PLANK = "plank"  # wood, laminate, vinyl plank: staggered rows, by area + allowance, boxes
+    ROLL = "roll"  # carpet, sheet vinyl: drops cut from a roll, sold by the running metre
 
 
 class Price(BaseModel):
@@ -38,7 +47,8 @@ class Price(BaseModel):
 
 
 class TileRef(BaseModel):
-    """Snapshot of a library tile at the time it was assigned."""
+    """Snapshot of a library tile at the time it was assigned. For a roll, width_mm is the roll
+    width and tiles_per_box is 1."""
 
     id: str
     name: str
@@ -46,6 +56,10 @@ class TileRef(BaseModel):
     length_mm: DecimalStr
     width_mm: DecimalStr
     tiles_per_box: int
+    kind: ProductKind = ProductKind.TILE
+    thickness_mm: DecimalStr | None = None  # grout depth (PRD 4.15)
+    tile_type: str | None = None  # floor, wall, anti_skid...: for room-type suggestions
+    material: str | None = None
 
 
 class MaterialOverride(BaseModel):

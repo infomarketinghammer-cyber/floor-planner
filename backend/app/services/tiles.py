@@ -9,10 +9,17 @@ from fastapi import HTTPException, status
 from app.engine.calc import Tile
 from app.engine.dimensions import DimensionError, parse_length
 from app.engine.units import MM2_PER_SQM, MM_PER_UNIT, LengthUnit, mm2_to_sqft, mm2_to_sqm
+from app.schemas.material import ProductKind
 from app.schemas.tile import TILE_SIZE_UNITS, TileInput, TileOut, TileScope
 
 MIN_SIDE_MM, MAX_SIDE_MM = Decimal(50), Decimal(3600)  # mosaic chips up to large slabs
 COVERAGE_TOLERANCE = Decimal("0.02")  # stated coverage may be rounded on the box label
+# Roll goods (carpet, sheet vinyl): common widths are 2, 3, 3.66, 4 and 5 m.
+ROLL_MIN_WIDTH_MM, ROLL_MAX_WIDTH_MM, ROLL_MAX_LENGTH_MM = (
+    Decimal(500),
+    Decimal(6000),
+    Decimal(100_000),
+)
 
 _UNIT_SUFFIX = {
     LengthUnit.MM: "mm",
@@ -36,6 +43,12 @@ def resolve(body: TileInput) -> dict:
         width = parse_length(body.width, body.size_unit)
     except DimensionError as e:
         raise _invalid(str(e)) from None
+    if body.kind == ProductKind.ROLL:
+        if not ROLL_MIN_WIDTH_MM <= width <= ROLL_MAX_WIDTH_MM:
+            raise _invalid("Roll width must be between 0.5 m and 6 m.")
+        if not width <= length <= ROLL_MAX_LENGTH_MM:
+            raise _invalid("Roll length must be at least the roll width and at most 100 m.")
+        return _fields(body, length, width, 1)
     for side in (length, width):
         if not MIN_SIDE_MM <= side <= MAX_SIDE_MM:
             raise _invalid("Tile sides must be between 50 mm and 3.6 m.")
@@ -63,8 +76,13 @@ def resolve(body: TileInput) -> dict:
         raise _invalid("Enter the tiles per box or the coverage per box.")
 
     Tile(length, width, tiles_per_box)  # the engine's own checks
+    return _fields(body, length, width, tiles_per_box)
+
+
+def _fields(body: TileInput, length: Decimal, width: Decimal, tiles_per_box: int) -> dict:
     return {
         "name": body.name.strip(),
+        "kind": body.kind.value,
         "length_mm": str(length),
         "width_mm": str(width),
         "size_unit": body.size_unit.value,
@@ -105,6 +123,7 @@ def tile_out(doc: dict, user: dict) -> TileOut:
         width_mm=width,
         size_unit=unit,
         size_label=size_label(length, width, unit),
+        kind=doc.get("kind", ProductKind.TILE.value),
         thickness_mm=Decimal(doc["thickness_mm"]) if doc.get("thickness_mm") else None,
         tiles_per_box=doc["tiles_per_box"],
         tile_area_sqm=float(mm2_to_sqm(area).quantize(Decimal("0.0001"))),
@@ -181,11 +200,171 @@ _PRESETS: list[tuple] = [
 ]
 
 
+# Other flooring (PRD 4.15), added in catalogue version 2.
+# (name, kind, length, width, unit, thickness, pieces/box, type, finish, material, region)
+_FLOORING_PRESETS: list[tuple] = [
+    (
+        "Engineered oak plank 1220×190",
+        "plank",
+        "1220",
+        "190",
+        "mm",
+        14,
+        8,
+        "floor",
+        "matt",
+        "wood",
+        "india",
+    ),
+    (
+        "Laminate plank 1380×193",
+        "plank",
+        "1380",
+        "193",
+        "mm",
+        8,
+        8,
+        "floor",
+        "textured",
+        "laminate",
+        "india",
+    ),
+    (
+        "Vinyl plank (LVT) 1220×180",
+        "plank",
+        "1220",
+        "180",
+        "mm",
+        5,
+        12,
+        "floor",
+        "matt",
+        "vinyl",
+        "india",
+    ),
+    (
+        "Sheet vinyl roll, 2 m wide",
+        "roll",
+        "25000",
+        "2000",
+        "mm",
+        2,
+        1,
+        "floor",
+        "matt",
+        "vinyl",
+        "india",
+    ),
+    (
+        "Carpet roll, 4 m wide",
+        "roll",
+        "25000",
+        "4000",
+        "mm",
+        10,
+        1,
+        "floor",
+        "textured",
+        "carpet",
+        "india",
+    ),
+    (
+        "Laminate plank 48×7.5 in",
+        "plank",
+        "48",
+        "7.5",
+        "in",
+        8,
+        10,
+        "floor",
+        "textured",
+        "laminate",
+        "imperial",
+    ),
+    (
+        "Carpet roll, 12 ft wide",
+        "roll",
+        "1200",
+        "144",
+        "in",
+        10,
+        1,
+        "floor",
+        "textured",
+        "carpet",
+        "imperial",
+    ),
+]
+CATALOG_VERSION = 2
+
+
+def _preset_doc(fields: dict, now: datetime) -> dict:
+    return fields | {
+        "scope": TileScope.CATALOG.value,
+        "owner_id": None,
+        "typical": True,
+        "archived": False,
+        "created_at": now,
+        "updated_at": now,
+    }
+
+
+def _flooring_docs(now: datetime) -> list[dict]:
+    docs = []
+    for (
+        name,
+        kind,
+        length,
+        width,
+        unit,
+        thick,
+        per_box,
+        type_,
+        finish,
+        material,
+        region,
+    ) in _FLOORING_PRESETS:
+        roll = kind == ProductKind.ROLL
+        fields = resolve(
+            TileInput(
+                name=name,
+                kind=kind,
+                length=length,
+                width=width,
+                size_unit=LengthUnit(unit),
+                thickness_mm=Decimal(thick),
+                tiles_per_box=None if roll else per_box,
+                coverage_per_box_sqm=Decimal(1) if roll else None,  # ignored for rolls
+                type=type_,
+                finish=finish,
+                material=material,
+                regions=[region],
+            )
+        )
+        docs.append(_preset_doc(fields, now))
+    return docs
+
+
 async def seed_catalog(db) -> int:
-    """Insert the presets once, into an empty catalogue. Admins can edit or remove them after."""
-    if await db.tiles.count_documents({"scope": TileScope.CATALOG.value}, limit=1):
-        return 0
+    """Insert the presets once, into an empty catalogue, and later preset sets into existing ones
+    (tracked in `meta`, so presets an admin deleted aren't brought back). Returns tiles added."""
+    meta = await db.meta.find_one({"_id": "catalog"}) or {}
+    version = meta.get("version", 1)
     now = datetime.now(UTC)
+    if await db.tiles.count_documents({"scope": TileScope.CATALOG.value}, limit=1):
+        if version >= CATALOG_VERSION:
+            return 0
+        names = {
+            d["name"] async for d in db.tiles.find({"scope": TileScope.CATALOG.value}, {"name": 1})
+        }
+        new = [d for d in _flooring_docs(now) if d["name"] not in names]
+        if new:
+            await db.tiles.insert_many(new)
+        await db.meta.update_one(
+            {"_id": "catalog"}, {"$set": {"version": CATALOG_VERSION}}, upsert=True
+        )
+        return len(new)
+
     docs = []
     for name, length, width, unit, thick, per_box, type_, finish, material, region in _PRESETS:
         fields = resolve(
@@ -202,15 +381,10 @@ async def seed_catalog(db) -> int:
                 regions=[region],
             )
         )
-        docs.append(
-            fields
-            | {
-                "scope": TileScope.CATALOG.value,
-                "owner_id": None,
-                "typical": True,
-                "archived": False,
-            }
-            | {"created_at": now, "updated_at": now}
-        )
+        docs.append(_preset_doc(fields, now))
+    docs += _flooring_docs(now)
     await db.tiles.insert_many(docs)
+    await db.meta.update_one(
+        {"_id": "catalog"}, {"$set": {"version": CATALOG_VERSION}}, upsert=True
+    )
     return len(docs)

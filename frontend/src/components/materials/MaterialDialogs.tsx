@@ -15,10 +15,16 @@ import { Button, ErrorText } from '../ui.tsx'
 import { TilePicker } from './TilePicker.tsx'
 
 export const LAYOUT_LABELS: Record<Layout, string> = { straight: 'Straight', diagonal: 'Diagonal' }
-export const BASIS_LABELS: Record<PriceBasis, string> = { box: 'per box', tile: 'per tile', sqft: 'per sq ft', sqm: 'per m²' }
+export const BASIS_LABELS: Record<PriceBasis, string> = {
+  box: 'per box',
+  tile: 'per tile / piece',
+  sqft: 'per sq ft',
+  sqm: 'per m²',
+  lm: 'per running m',
+}
 const inputClass = 'rounded-md border border-slate-300 px-3 py-2 text-sm'
 
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   const ref = useRef<HTMLDialogElement>(null)
   useEffect(() => {
     ref.current?.showModal()
