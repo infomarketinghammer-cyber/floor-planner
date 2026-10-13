@@ -1,10 +1,12 @@
 import { createBrowserRouter } from 'react-router'
 import { PublicOrApp, RedirectHome, RequireAuth } from './auth/RequireAuth.tsx'
 import { AppLayout } from './components/AppLayout.tsx'
+import { AccountPage } from './pages/AccountPage.tsx'
 import { AdminPage } from './pages/admin/AdminPage.tsx'
 import { HomePage } from './pages/HomePage.tsx'
 import { LandingPage } from './pages/LandingPage.tsx'
 import { LoginPage } from './pages/LoginPage.tsx'
+import { PrivacyPage } from './pages/PrivacyPage.tsx'
 import { ProjectPage } from './pages/ProjectPage.tsx'
 import { RegisterPage } from './pages/RegisterPage.tsx'
 import { TilesPage } from './pages/TilesPage.tsx'
@@ -17,12 +19,14 @@ export const router = createBrowserRouter([
   },
   { path: '/login', element: <LoginPage /> },
   { path: '/register', element: <RegisterPage /> },
+  { path: '/privacy', element: <PrivacyPage /> }, // public: readable before signing up
   {
     element: <RequireAuth />,
     children: [
       {
         element: <AppLayout />,
         children: [
+          { path: 'account', element: <AccountPage /> },
           {
             element: <RequireAuth roles={['contractor', 'admin']} />,
             children: [

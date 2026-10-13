@@ -177,6 +177,9 @@ export function LandingPage() {
         <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-8 text-sm text-slate-500 sm:flex-row sm:justify-between">
           <span>© {YEAR} Floor Planner</span>
           <span>Estimates are a guide. Always verify quantities before ordering.</span>
+          <Link to="/privacy" className="hover:underline">
+            Your plans and data
+          </Link>
         </div>
       </footer>
     </div>

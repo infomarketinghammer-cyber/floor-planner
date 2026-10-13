@@ -9,6 +9,7 @@ from app.api.v1 import (
     files,
     materials,
     projects,
+    public,
     rooms,
     tiles,
     users,
@@ -26,3 +27,4 @@ api_router.include_router(feedback.router)
 api_router.include_router(tiles.router)
 api_router.include_router(users.router)
 api_router.include_router(admin.router)
+api_router.include_router(public.router)

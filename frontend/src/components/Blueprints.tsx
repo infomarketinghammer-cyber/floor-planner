@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type DragEvent } from 'react'
+import { Link } from 'react-router'
 import { api } from '../api/client.ts'
 import type { Blueprint, BlueprintPage } from '../api/types.ts'
+import { usePrivacyInfo } from '../lib/privacy.ts'
 import { lengthUnitLabels } from '../lib/units.ts'
 import { ErrorText } from './ui.tsx'
 
@@ -110,6 +112,7 @@ export function BlueprintsSection({ projectId, onChange }: { projectId: string; 
       </div>
 
       <DropZone onFiles={uploadAll} />
+      <ProcessingNotice />
       <ErrorText>{error}</ErrorText>
 
       {jobs.length > 0 && (
@@ -385,5 +388,24 @@ function PageTile({
         </p>
       ))}
     </li>
+  )
+}
+
+/** Where an uploaded plan is processed and how long it's kept (PRD 4.14), from the server's settings. */
+function ProcessingNotice() {
+  const info = usePrivacyInfo()
+  if (!info) return null
+  return (
+    <p className="text-xs text-slate-500">
+      PDFs and CAD files are read on our server.{' '}
+      {info.ai_reading_enabled
+        ? `Photos and scanned pages are sent to ${info.ai_provider} to read room names and sizes. `
+        : 'Photos and scanned pages are not sent anywhere; add their rooms by hand. '}
+      Files are used only for this estimate and kept {info.files_encrypted_at_rest ? 'encrypted ' : ''}in your account
+      until you delete them.{' '}
+      <Link to="/privacy" className="text-brand-600 hover:underline">
+        More about your data
+      </Link>
+    </p>
   )
 }

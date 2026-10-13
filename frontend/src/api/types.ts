@@ -500,3 +500,16 @@ export interface EvalEntry {
   accuracy_pct_at_add: string | null
   created_at: string
 }
+
+// --- Privacy (PRD 4.14) --------------------------------------------------------------------------
+/** How this deployment handles uploaded plans, from its real settings. */
+export interface PrivacyInfo {
+  ai_reading_enabled: boolean
+  ai_provider: string | null
+  files_encrypted_at_rest: boolean
+  data_location: string | null
+  email_enabled: boolean
+  email_provider: string | null
+  retention: string
+  max_upload_mb: number
+}

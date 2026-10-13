@@ -19,6 +19,16 @@ app.use(cookieParser());
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
+// --- Encrypt in transit (PRD 4.14): in production, plain HTTP is redirected to HTTPS. Behind a
+// TLS-terminating proxy, `trust proxy` makes req.secure follow X-Forwarded-Proto. Helmet sends
+// HSTS so browsers stay on HTTPS.
+if (config.isProduction && config.forceHttps) {
+  app.use((req, res, next) => {
+    if (req.secure || req.path === '/health') return next();
+    return res.redirect(308, `https://${req.headers.host}${req.originalUrl}`);
+  });
+}
+
 // --- Public auth routes (handled by the gateway, which owns the session cookie)
 app.use('/api/auth', authRouter);
 
@@ -34,6 +44,15 @@ app.post(['/api/projects/:projectId/files', '/api/projects/:projectId/rooms/impo
   }
   return next();
 });
+
+// --- Public, no login: how this deployment handles data (privacy page)
+app.use(
+  '/api/public',
+  createProxyMiddleware({
+    target: config.fastapiUrl,
+    pathRewrite: (reqPath) => `/api/v1/public${reqPath}`,
+  }),
+);
 
 // --- Everything under /api is authenticated and proxied to FastAPI as /api/v1/*
 app.use(

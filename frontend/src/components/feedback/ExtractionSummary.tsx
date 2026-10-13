@@ -147,8 +147,8 @@ export function ExtractionSummary({ projectId, version }: { projectId: string; v
                 />
                 <span>
                   Share a copy of this plan file and its confirmed room list with the Floor Planner team, used only to
-                  test and improve how plans are read. The copy is kept until you remove it here, even if you delete
-                  the project.
+                  test and improve how plans are read. The copy is kept until you remove it, here or on your Account
+                  page, even if you delete the project.
                 </span>
               </label>
               <Button type="button" onClick={() => change(true)} disabled={!consent || busy}>

@@ -276,3 +276,24 @@ DejaVu Sans (Linux, `fonts-dejavu-core`) so currency signs like ₹ render.
   ```
 
 Deleting a project deletes its outcomes and feedback.
+
+## Security, privacy and data (PRD 4.14)
+
+- **Purpose**: plans are used only to produce the estimate. The only other use is the opt-in
+  evaluation set. Users see where files are processed next to the upload area and on `/privacy`,
+  which reads the deployment's real settings from `GET /api/public/privacy` (no login).
+- **Where files are processed**: digital PDFs and DXF/DWG are read on the server. Photos and
+  scanned pages go to the Anthropic API only when `ANTHROPIC_API_KEY` is set.
+- **Retention**: plans and projects are kept until the user deletes them; nothing is deleted
+  automatically. The rules live in `backend/app/services/data_deletion.py`.
+- **Deletion**: a plan file (file, converted copy, thumbnails, cached previews), a project (plus its
+  outcomes and feedback) or the whole account (`/account`: projects, own tiles, feedback, shared
+  evaluation copies, email log, the user). Users can always remove plans they shared for the
+  evaluation set from `/account`, even after deleting the project.
+- **Encryption at rest**: set `FILE_ENCRYPTION_KEY` and every stored file (plans, thumbnails,
+  evaluation copies) is encrypted with AES-256-GCM. Files saved earlier keep working; convert them
+  with `python -m app.maintenance encrypt-files`. Back the key up: files can't be read without it.
+  For database fields, use MongoDB's encrypted storage (Atlas encrypts at rest by default).
+- **Encryption in transit**: in production the gateway redirects HTTP to HTTPS and sends HSTS
+  (`FORCE_HTTPS=false` only if TLS is fully handled in front of it). Use TLS to MongoDB
+  (`mongodb+srv://` or `?tls=true`). Calls to Anthropic and Resend use HTTPS.

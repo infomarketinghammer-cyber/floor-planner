@@ -35,6 +35,13 @@ class Settings(BaseSettings):
     email_from: str | None = None
     max_emails_per_hour: int = 20  # per user, so the feature can't be used to send spam
 
+    # Security and privacy (PRD 4.14). Uploaded plans are encrypted at rest with this key
+    # (32 random bytes, base64); see app/core/crypto.py. Keep it secret and backed up: without
+    # it, encrypted files can't be read.
+    file_encryption_key: str | None = None
+    # Shown to users on the privacy page, e.g. "AWS Mumbai (ap-south-1)". Empty: not stated.
+    data_location: str = ""
+
 
 @lru_cache
 def get_settings() -> Settings:

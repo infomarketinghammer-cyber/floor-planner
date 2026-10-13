@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from fastapi import FastAPI
 
 from app.api.v1 import api_router
+from app.core import crypto
 from app.core.config import get_settings
 from app.core.security import hash_password
 from app.db import mongo
@@ -37,6 +38,12 @@ async def _seed_admin() -> None:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    crypto.check_key()  # a bad key should stop startup, not the first upload
+    if not crypto.enabled():
+        logger.warning(
+            "FILE_ENCRYPTION_KEY is not set: uploaded plans are stored unencrypted. "
+            "See app/core/crypto.py to generate a key."
+        )
     await mongo.connect()
     await _seed_admin()
     if seeded := await seed_catalog(mongo.get_db()):

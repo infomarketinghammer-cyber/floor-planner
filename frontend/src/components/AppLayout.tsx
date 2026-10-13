@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from 'react-router'
+import { Link, NavLink, Outlet, useNavigate } from 'react-router'
 import { useAuth } from '../auth/AuthContext.tsx'
 import { UnitSystemToggle } from './UnitSystemToggle.tsx'
 
@@ -36,9 +36,9 @@ export function AppLayout() {
           </nav>
           <div className="ml-auto flex items-center gap-3 text-sm">
             <UnitSystemToggle />
-            <span className="hidden text-slate-600 sm:inline">
+            <Link to="/account" className="hidden text-slate-600 hover:text-slate-900 sm:inline" title="Account">
               {user?.name} <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">{user?.role}</span>
-            </span>
+            </Link>
             <button onClick={handleLogout} className="whitespace-nowrap text-slate-600 hover:text-slate-900">
               Log out
             </button>
@@ -48,6 +48,14 @@ export function AppLayout() {
       <main className="mx-auto max-w-6xl px-4 py-8">
         <Outlet />
       </main>
+      <footer className="mx-auto flex max-w-6xl flex-wrap gap-4 px-4 pb-8 text-xs text-slate-500">
+        <Link to="/privacy" className="hover:underline">
+          Your plans and data
+        </Link>
+        <Link to="/account" className="hover:underline sm:hidden">
+          Account
+        </Link>
+      </footer>
     </div>
   )
 }

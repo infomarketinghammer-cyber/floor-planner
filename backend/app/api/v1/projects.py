@@ -4,10 +4,10 @@ from fastapi import APIRouter, HTTPException, Response, status
 from pymongo import DESCENDING, ReturnDocument
 
 from app.api.deps import CurrentUser
-from app.api.v1.files import delete_blueprint_files
 from app.db.mongo import get_db
 from app.schemas.estimate import EstimateOut
 from app.schemas.project import ProjectCreate, ProjectOut, ProjectStatus, ProjectUpdate
+from app.services.data_deletion import delete_project_data
 from app.services.estimate import build_estimate
 from app.services.materials import project_default
 from app.services.project_summary import project_out
@@ -102,12 +102,6 @@ async def delete_project(project_id: str, user: CurrentUser) -> Response:
     project = await get_db().projects.find_one_and_delete(project_scope(user, project_id))
     if project is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
-    # Uploaded plans are sensitive (PRD 4.14): remove them with the project.
-    async for blueprint in get_db().blueprints.find({"project_id": project["_id"]}):
-        await delete_blueprint_files(blueprint)
-    await get_db().blueprints.delete_many({"project_id": project["_id"]})
-    # Accuracy records and feedback belong to the project. Plans the user chose to add to the
-    # evaluation set are separate copies and stay until removed there.
-    await get_db().extraction_outcomes.delete_many({"project_id": project["_id"]})
-    await get_db().feedback.delete_many({"project_id": project["_id"]})
+    # Uploaded plans are sensitive (PRD 4.14): remove them, and everything else, with it.
+    await delete_project_data(project)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -6,6 +6,7 @@ import type {
   EvalEntry,
   Feedback,
   ProjectAccuracy,
+  PrivacyInfo,
   ExtractionResult,
   LengthUnit,
   Project,
@@ -248,9 +249,23 @@ export const api = {
     copy: (id: string) => request<Tile>(`/tiles/${id}/copy`, json('POST')),
     remove: (id: string) => request<void>(`/tiles/${id}`, json('DELETE')),
   },
+  public: {
+    privacy: () => request<PrivacyInfo>('/public/privacy'),
+  },
   users: {
     updatePreferences: (preferences: User['preferences']) =>
       request<User>('/users/me/preferences', json('PUT', preferences)),
+    sharedPlans: () =>
+      request<{ id: string; project_name: string | null; files: string[]; created_at: string; project_exists: boolean }[]>(
+        '/users/me/evaluation',
+      ),
+    removeSharedPlan: (id: string) => request<void>(`/users/me/evaluation/${id}`, json('DELETE')),
+    /** Deletes the account and all its data. Cannot be undone. */
+    deleteAccount: (password: string) =>
+      request<{ projects: number; tiles: number; evaluation_copies: number }>(
+        '/users/me',
+        json('DELETE', { password }),
+      ),
   },
   admin: {
     stats: () => request<AdminStats>('/admin/stats'),

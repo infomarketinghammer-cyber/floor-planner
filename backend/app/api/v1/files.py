@@ -215,7 +215,9 @@ async def download_file(project_id: str, file_id: str, user: CurrentUser) -> Res
     data = await storage.get(doc["file_id"])
     disposition = f"attachment; filename*=UTF-8''{quote(doc['filename'])}"
     return Response(
-        data, media_type=doc["content_type"], headers={"Content-Disposition": disposition}
+        data,
+        media_type=doc["content_type"],
+        headers={"Content-Disposition": disposition, "Cache-Control": "private, no-store"},
     )
 
 
