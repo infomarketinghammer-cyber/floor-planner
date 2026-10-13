@@ -13,16 +13,22 @@ from app.engine.calc import (
     DIAGONAL_ALLOWANCE_PCT,
     Excluded,
     Tile,
+    _covered_tiles,
+    _finish,
     calculate_by_area,
     calculate_room,
+    ceil_int,
 )
+from app.engine.calc import Method as CalcMethod
 from app.engine.extras import (
     PLANK_ALLOWANCE_PCT,
     PLANK_DIAGONAL_ALLOWANCE_PCT,
     ROLL_TRIM_MM,
+    RollResult,
     calculate_roll,
     calculate_roll_by_area,
 )
+from app.engine.layouts import Part, count_brick, count_herringbone, straight_with_reuse
 from app.engine.units import mm2_to_sqft, mm2_to_sqm
 from app.extraction.classify import room_type
 from app.schemas.estimate import (
@@ -94,30 +100,19 @@ def estimate_room(room: Room, default: ProjectMaterial) -> RoomEstimateOut:
         )
         area = room.area_mm2 if room.area_only else room.floor_area_mm2
         result = calculate_by_area(area, tile, allowance, eff.breakage_pct, excluded_area)
-    elif room.area_only:
-        allowance = (
-            DIAGONAL_ALLOWANCE_PCT if eff.layout == Layout.DIAGONAL else AREA_ONLY_ALLOWANCE_PCT
-        )
-        reason = (
-            f"Known by area only, so tiles are worked out by area plus {allowance:f}% for cutting."
-        )
-        result = calculate_by_area(room.area_mm2, tile, allowance, eff.breakage_pct, excluded_area)
-    elif eff.layout == Layout.DIAGONAL:
-        allowance = DIAGONAL_ALLOWANCE_PCT
-        reason = (
-            f"Diagonal layout: tiles worked out by area plus {allowance:f}% for the extra cuts."
-        )
-        result = calculate_by_area(
-            room.floor_area_mm2, tile, allowance, eff.breakage_pct, excluded_area
-        )
     else:
-        allowance = Decimal(0)
-        reason = "Straight layout: tiles counted on a grid over the room."
-        result = calculate_room(room.length_mm, room.width_mm, tile, eff.breakage_pct, exclusions)
+        result, allowance, reason, cut_tiles, if_reused, reused = _tile_result(
+            room, eff, tile, default, exclusions, excluded_area
+        )
 
+    if eff.tile.kind == ProductKind.PLANK:
+        cut_tiles, if_reused, reused = None, None, False
     high_waste = result.cut_waste_pct > HIGH_WASTE_PCT
     return RoomEstimateOut(
         kind=eff.tile.kind,
+        cut_tiles=cut_tiles,
+        tiles_if_reused=if_reused,
+        reuse_applied=reused,
         room_id=room.id,
         name=room.name,
         floor=room.floor,
@@ -156,6 +151,131 @@ def estimate_room(room: Room, default: ProjectMaterial) -> RoomEstimateOut:
     )
 
 
+def room_parts(room: Room) -> list[Part] | None:
+    """The room as rectangles: its parts, or its length × width. None if known only by area."""
+    if room.parts:
+        return [Part(p.x_mm, p.y_mm, p.length_mm, p.width_mm) for p in room.parts]
+    if room.length_mm is not None and room.width_mm is not None:
+        return [Part(Decimal(0), Decimal(0), room.length_mm, room.width_mm)]
+    return None
+
+
+def _tile_result(room: Room, eff, tile: Tile, default: ProjectMaterial, exclusions, excluded_area):
+    """Tiles for one room (PRD 4.7, 4.16). Returns (result, allowance %, reason, cut tiles,
+    tiles if offcuts were reused, whether the reuse figure is used)."""
+    parts = room_parts(room)
+    layout = eff.layout
+    if parts is None or layout == Layout.DIAGONAL:
+        wide = layout in (Layout.DIAGONAL, Layout.HERRINGBONE)
+        allowance = DIAGONAL_ALLOWANCE_PCT if wide else AREA_ONLY_ALLOWANCE_PCT
+        if parts is None:
+            reason = f"Known by area only, so tiles are worked out by area plus {allowance:f}% for cutting."
+        else:
+            reason = (
+                f"Diagonal layout: tiles worked out by area plus {allowance:f}% for the extra cuts."
+            )
+        result = calculate_by_area(
+            room.floor_area_mm2, tile, allowance, eff.breakage_pct, excluded_area
+        )
+        return result, allowance, reason, None, None, False
+
+    single = len(parts) == 1 and not room.parts
+    if layout == Layout.STRAIGHT and single:
+        p = parts[0]
+        result = calculate_room(p.length, p.width, tile, eff.breakage_pct, exclusions)
+        rx = p.length - (result.columns - 1) * tile.length_mm
+        ry = p.width - (result.rows - 1) * tile.width_mm
+        cut = (result.rows if rx < tile.length_mm else 0) + (
+            result.columns if ry < tile.width_mm else 0
+        )
+        cut -= 1 if rx < tile.length_mm and ry < tile.width_mm else 0
+        if_reused = (
+            straight_with_reuse(p.length, p.width, tile.length_mm, tile.width_mm)
+            - result.excluded_tiles
+        )
+        reason = "Straight layout: tiles counted on a grid over the room."
+        if default.reuse_offcuts and if_reused < result.tiles_needed:
+            result = _finish_with(result, tile, if_reused, eff.breakage_pct)
+            reason += " Narrow edge pieces are cut from offcuts of other edge tiles."
+            return result, Decimal(0), reason, cut, if_reused, True
+        return result, Decimal(0), reason, cut, if_reused, False
+
+    area = room.floor_area_mm2
+    excluded = sum(_covered_tiles(e, tile) for e in exclusions)
+    if layout == Layout.HERRINGBONE:
+        grid, cut = count_herringbone(parts, tile.length_mm, tile.width_mm)
+        excluded, if_reused = 0, None  # only whole tiles certain to be covered are taken off
+        reason = (
+            "Herringbone: every tile of the zigzag that touches the room is counted, and each cut "
+            "tile counts as a whole tile."
+        )
+    elif layout == Layout.BRICK:
+        offset = default.brick_offset_pct
+        plain = [
+            count_brick(p.length, p.width, tile.length_mm, tile.width_mm, offset, False)
+            for p in parts
+        ]
+        reuse = [
+            count_brick(p.length, p.width, tile.length_mm, tile.width_mm, offset, True)
+            for p in parts
+        ]
+        grid = sum(r.tiles for r in plain)
+        cut = sum(r.cut_pieces for r in plain)
+        if_reused = sum(r.tiles for r in reuse) - min(excluded, grid - 1)
+        reason = (
+            f"Brick offset: rows shifted by {offset.normalize():f}% of a tile, counted row by row; "
+            "every cut piece at a row end counts as a tile."
+        )
+    else:  # straight, room split into rectangles
+        grid = sum(
+            ceil_int(p.length / tile.length_mm) * ceil_int(p.width / tile.width_mm) for p in parts
+        )
+        cut = None
+        if_reused = sum(
+            straight_with_reuse(p.length, p.width, tile.length_mm, tile.width_mm) for p in parts
+        ) - min(excluded, grid - 1)
+        reason = "Straight layout: tiles counted on a grid over each rectangle of the room."
+    if room.parts:
+        reason += f" The room is split into {len(parts)} rectangles, each counted on its own."
+    excluded = min(excluded, grid - 1)
+    needed = grid - excluded
+    reused = bool(default.reuse_offcuts and if_reused is not None and if_reused < needed)
+    if reused:
+        needed = if_reused
+        reason += " Cut pieces are taken from offcuts where they're long enough."
+    result = _finish(
+        method=CalcMethod.GRID,
+        tile=tile,
+        room_area=area,
+        usable_area=area - excluded_area,
+        columns=None,
+        rows=None,
+        grid_tiles=grid,
+        excluded_tiles=excluded,
+        tiles_needed=needed,
+        allowance_pct=Decimal(0),
+        breakage_pct=eff.breakage_pct,
+    )
+    return result, Decimal(0), reason, cut, if_reused, reused
+
+
+def _finish_with(result, tile: Tile, tiles_needed: int, breakage_pct: Decimal):
+    """The same room result with a different tile count (offcut reuse)."""
+    return _finish(
+        method=result.method,
+        tile=tile,
+        room_area=result.room_area_mm2,
+        usable_area=result.usable_area_mm2,
+        columns=result.columns,
+        rows=result.rows,
+        grid_tiles=result.grid_tiles,
+        excluded_tiles=result.excluded_tiles,
+        tiles_needed=tiles_needed,
+        allowance_pct=result.allowance_pct,
+        breakage_pct=breakage_pct,
+    )
+
+
 def _estimate_roll(room: Room, eff, excluded_area: Decimal) -> RoomEstimateOut:
     """Carpet or sheet vinyl: drops cut from a roll of the product's width (PRD 4.15)."""
     roll_width = eff.tile.width_mm
@@ -164,6 +284,19 @@ def _estimate_roll(room: Room, eff, excluded_area: Decimal) -> RoomEstimateOut:
         reason = (
             f"Known by area only: roll length is the area ÷ roll width plus {r.allowance_pct:f}%."
         )
+    elif room.parts:
+        rolls = [calculate_roll(p.length_mm, p.width_mm, roll_width) for p in room.parts]
+        r = RollResult(
+            room_area_mm2=room.floor_area_mm2,
+            usable_area_mm2=room.floor_area_mm2 - excluded_area,
+            roll_width_mm=roll_width,
+            drops=sum(x.drops for x in rolls),
+            drop_length_mm=None,
+            linear_mm=sum((x.linear_mm for x in rolls), Decimal(0)),
+            along=None,
+            allowance_pct=Decimal(0),
+        )
+        reason = f"Drops worked out for each of the room's {len(rolls)} rectangles."
     else:
         r = calculate_roll(room.length_mm, room.width_mm, roll_width, excluded_area)
         reason = (
@@ -329,17 +462,59 @@ def assumptions(
     planks = [r for r in rooms if r.kind == ProductKind.PLANK]
     rolls = [r for r in rooms if r.kind == ProductKind.ROLL]
     rooms = [r for r in rooms if r.kind == ProductKind.TILE]  # tile rules below
+    state_rooms = {r.id: r for r in state.rooms}
     diagonal = [r for r in rooms if r.method == "area" and r.layout == Layout.DIAGONAL]
     by_area = [r for r in rooms if r.method == "area" and r.layout != Layout.DIAGONAL]
 
-    if grid:
+    straight = [r for r in grid if r.layout == Layout.STRAIGHT]
+    brick = [r for r in grid if r.layout == Layout.BRICK]
+    herringbone = [r for r in grid if r.layout == Layout.HERRINGBONE]
+    if straight:
         out.append(
             Assumption(
                 key="method_grid",
                 title="Straight layout",
-                text=f"{_names(grid)}: whole tiles counted on a grid starting from one corner. Every "
-                "part-tile at the edges counts as a full tile; cut waste is the grid area minus the "
-                "area to tile.",
+                text=f"{_names(straight)}: whole tiles counted on a grid starting from one corner. "
+                "Every part-tile at the edges counts as a full tile; cut waste is the grid area "
+                "minus the area to tile.",
+            )
+        )
+    if brick:
+        out.append(
+            Assumption(
+                key="method_brick",
+                title="Brick offset",
+                text=f"{_names(brick)}: rows shifted by {_pct(default.brick_offset_pct)} of a tile, "
+                "counted row by row from one corner.",
+            )
+        )
+    if herringbone:
+        out.append(
+            Assumption(
+                key="method_herringbone",
+                title="Herringbone",
+                text=f"{_names(herringbone)}: every tile of the zigzag pattern that touches the room "
+                "is counted, laid from one corner; each cut tile counts as a whole tile.",
+            )
+        )
+    split = [r for r in grid if state_rooms.get(r.room_id) and state_rooms[r.room_id].parts]
+    if split:
+        out.append(
+            Assumption(
+                key="split_rooms",
+                title="Rooms split into rectangles",
+                text=f"{_names(split)}: each rectangle is counted on its own, so cuts at the joins "
+                "are counted on both sides (slightly more than needed).",
+            )
+        )
+    reused = [r for r in grid if r.reuse_applied]
+    if reused:
+        out.append(
+            Assumption(
+                key="offcut_reuse",
+                title="Offcut reuse",
+                text=f"{_names(reused)}: cut pieces are taken from offcuts of other cut tiles "
+                "wherever an offcut is long enough. Cutting must be planned to get this saving.",
             )
         )
     if diagonal:

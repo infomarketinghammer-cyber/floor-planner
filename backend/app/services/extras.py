@@ -47,7 +47,10 @@ def _tile(ref: TileRef) -> Tile:
 
 
 def perimeter_mm(room: Room) -> Decimal | None:
-    if room.length_mm is None or room.width_mm is None:
+    """The perimeter entered for the room, else 2 × (length + width) of a rectangular room."""
+    if room.perimeter_mm is not None:
+        return room.perimeter_mm
+    if room.parts or room.length_mm is None or room.width_mm is None:
         return None
     return 2 * (room.length_mm + room.width_mm)
 
@@ -76,11 +79,14 @@ def _walls(
             continue
         if w.length_mm is not None:
             lengths = [w.length_mm]
-        elif room.length_mm is not None and room.width_mm is not None:
+        elif room.perimeter_mm is not None:
+            lengths = [room.perimeter_mm]
+        elif not room.parts and room.length_mm is not None and room.width_mm is not None:
             lengths = [room.length_mm, room.width_mm, room.length_mm, room.width_mm]
         else:
             warnings.append(
-                f"{room.name}: enter the length of wall to tile (the room is known only by area)."
+                f"{room.name}: enter the length of wall to tile, or the room's perimeter "
+                "(it isn't a simple rectangle)."
             )
             continue
         openings = tuple(Excluded(o.width_mm, o.height_mm, o.quantity) for o in room.openings)
@@ -157,7 +163,9 @@ def _skirting(
             continue
         perimeter = perimeter_mm(room)
         if perimeter is None:
-            warnings.append(f"{room.name}: skirting needs the room's length and width.")
+            warnings.append(
+                f"{room.name}: skirting needs the room's perimeter (it isn't a simple rectangle)."
+            )
             continue
         doors = sum(
             (o.width_mm * o.quantity for o in room.openings if o.kind == OpeningKind.DOOR),

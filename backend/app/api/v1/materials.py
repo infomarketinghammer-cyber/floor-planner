@@ -2,29 +2,38 @@
 
 import uuid
 from datetime import UTC, datetime
+from decimal import Decimal
 
 from fastapi import APIRouter, HTTPException, status
+from pydantic import BaseModel, Field
 from pymongo import ReturnDocument
 
 from app.api.deps import CurrentUser
 from app.api.v1.rooms import _CHANGED_ELSEWHERE, _replace_rooms, _rooms, rooms_out
 from app.db.mongo import get_db
 from app.engine.dimensions import DimensionError, parse_length
+from app.engine.layouts import MAX_DRAWN_TILES, layout_tiles, roll_drops
+from app.engine.units import LengthUnit
 from app.schemas.extras import ExtrasSettings, ExtrasSettingsIn, Opening, RoomWallsIn, WallTiling
 from app.schemas.material import (
     MATERIAL_FIELDS,
     DefaultMaterialIn,
     Exclusion,
     ExclusionsIn,
+    Layout,
+    ProductKind,
     ProjectMaterial,
     RoomsMaterialIn,
+    TileRef,
 )
-from app.schemas.project import RoomsOut
+from app.schemas.project import RoomOrigin, RoomPart, RoomsOut
+from app.services.estimate import build_estimate, room_parts
 from app.services.extras import extras_settings
-from app.services.materials import load_tile_ref, project_default
+from app.services.materials import effective, load_tile_ref, project_default
 from app.services.projects import get_project_or_404
 from app.services.review import review_state
 from app.services.suggestions import SuggestionOut, suggestions
+from app.services.tile_advice import TileAdviceOut, advise
 
 router = APIRouter(prefix="/projects/{project_id}", tags=["materials"])
 
@@ -46,6 +55,8 @@ async def set_default_material(
         layout=body.layout,
         breakage_pct=body.breakage_pct,
         price=body.price,
+        brick_offset_pct=body.brick_offset_pct,
+        reuse_offcuts=body.reuse_offcuts,
     )
     return await _replace_rooms(
         project, _rooms(project), {"default_material": default.model_dump()}
@@ -226,3 +237,169 @@ async def room_suggestions(project_id: str, user: CurrentUser) -> list[Suggestio
     ]
     state = review_state(project)
     return suggestions(state.rooms, project_default(project), extras_settings(project), tiles)
+
+
+# --- Layouts (PRD 4.16) -------------------------------------------------------------------------
+
+
+class RoomPartIn(BaseModel):
+    label: str = Field(default="", max_length=40)
+    length: str = Field(min_length=1, max_length=30)
+    width: str = Field(min_length=1, max_length=30)
+    x: str | None = Field(default=None, max_length=30)  # position from the room's top-left
+    y: str | None = Field(default=None, max_length=30)
+
+
+class RoomPartsIn(BaseModel):
+    """Split a room into rectangles. An empty list puts it back to one rectangle (the first
+    part). The room is un-confirmed, since its size changed."""
+
+    parts: list[RoomPartIn] = Field(max_length=12)
+    perimeter: str | None = Field(default=None, max_length=30)
+    unit: LengthUnit = LengthUnit.FT_IN
+    version: int
+
+
+@router.put("/rooms/{room_id}/parts", response_model=RoomsOut)
+async def set_room_parts(
+    project_id: str, room_id: str, body: RoomPartsIn, user: CurrentUser
+) -> RoomsOut:
+    project = await get_project_or_404(user, project_id)
+    _check_version(project, body.version)
+    rooms = _rooms(project)
+    room = next((r for r in rooms if r.id == room_id), None)
+    if room is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Room not found")
+    if len(body.parts) == 1:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "Split a room into at least two rectangles, or give it one length and width.",
+        )
+    parts, next_x = [], Decimal(0)
+    for i, p in enumerate(body.parts, start=1):
+        label = p.label.strip() or f"Part {i}"
+        length = _length(p.length, body.unit, f"{label} length")
+        width = _length(p.width, body.unit, f"{label} width")
+        x = _length(p.x, body.unit, f"{label} position") if p.x else next_x
+        y = _length(p.y, body.unit, f"{label} position") if p.y else Decimal(0)
+        parts.append(
+            RoomPart(
+                id=uuid.uuid4().hex[:8],
+                label=label,
+                length_mm=length,
+                width_mm=width,
+                x_mm=x,
+                y_mm=y,
+            )
+        )
+        next_x = max(next_x, x + length)
+    if parts:
+        room.parts = parts
+        room.length_mm = room.width_mm = room.area_mm2 = None
+    else:  # back to a plain rectangle: keep the main part
+        if room.parts:
+            room.length_mm, room.width_mm = room.parts[0].length_mm, room.parts[0].width_mm
+        room.parts = []
+    room.perimeter_mm = _length(body.perimeter, body.unit, "Perimeter") if body.perimeter else None
+    room.unit = body.unit
+    room.confirmed = False
+    if room.origin == RoomOrigin.AUTO:
+        room.origin = RoomOrigin.EDITED
+    return await _replace_rooms(project, rooms)
+
+
+class LayoutTileOut(BaseModel):
+    points: list[tuple[float, float]]
+    cut: bool
+
+
+class RoomLayoutOut(BaseModel):
+    room_id: str
+    name: str
+    layout: str
+    tile: TileRef
+    parts: list[tuple[float, float, float, float]]  # x, y, length, width (mm)
+    tiles: list[LayoutTileOut]
+    total: int
+    cut: int
+    too_many: bool  # too many tiles to draw; counts still given
+    estimate_tiles: int | None  # the estimate's tile count, before the breakage buffer
+    note: str | None  # when the drawing illustrates rather than counts
+
+
+@router.get("/rooms/{room_id}/layout", response_model=RoomLayoutOut)
+async def room_layout(project_id: str, room_id: str, user: CurrentUser) -> RoomLayoutOut:
+    """The room drawn tile by tile, cut tiles marked (PRD 4.16)."""
+    project = await get_project_or_404(user, project_id)
+    state = review_state(project)
+    room = next((r for r in state.rooms if r.id == room_id), None)
+    if room is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Room not found")
+    default = project_default(project)
+    eff = effective(room, default)
+    parts = room_parts(room)
+    if eff.tile is None or parts is None:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Choose a tile and give the room a length and width (or split it into rectangles) "
+            "to see its layout.",
+        )
+    estimate = build_estimate(state, default, extras_settings(project))
+    est = next((r for r in estimate.rooms if r.room_id == room_id), None)
+    tile = eff.tile
+    note = None
+    if tile.kind == ProductKind.ROLL:
+        placed = roll_drops(parts, tile.width_mm)
+        layout = "roll"
+    else:
+        layout = "brick" if tile.kind == ProductKind.PLANK else eff.layout.value
+        placed = layout_tiles(
+            parts, tile.length_mm, tile.width_mm, layout, default.brick_offset_pct
+        )
+        if tile.kind == ProductKind.PLANK:
+            note = "Planks drawn in staggered rows; the quantity is the area plus an allowance."
+        elif eff.layout == Layout.DIAGONAL:
+            note = "The quantity uses the area plus an allowance for diagonal cuts, not this count."
+    if est and est.reuse_applied:
+        note = "The quantity counts on reusing offcuts, so it is lower than the tiles drawn."
+    too_many = len(placed) > MAX_DRAWN_TILES
+    return RoomLayoutOut(
+        room_id=room.id,
+        name=room.name,
+        layout=layout,
+        tile=tile,
+        parts=[(float(p.x), float(p.y), float(p.length), float(p.width)) for p in parts],
+        tiles=[]
+        if too_many
+        else [
+            LayoutTileOut(points=[(round(x, 1), round(y, 1)) for x, y in t.points], cut=t.cut)
+            for t in placed
+        ],
+        total=len(placed),
+        cut=sum(t.cut for t in placed),
+        too_many=too_many,
+        estimate_tiles=est.tiles_needed if est and tile.kind != ProductKind.ROLL else None,
+        note=note,
+    )
+
+
+@router.get("/tile-advice", response_model=TileAdviceOut)
+async def tile_advice(project_id: str, user: CurrentUser) -> TileAdviceOut:
+    """The tile size that wastes least, per room and for the project default (PRD 4.16)."""
+    project = await get_project_or_404(user, project_id)
+    state = review_state(project)
+    default = project_default(project)
+    estimate = build_estimate(state, default, extras_settings(project))
+    library = [
+        t
+        async for t in get_db().tiles.find(
+            {
+                "archived": {"$ne": True},
+                "$or": [
+                    {"scope": "catalog"},
+                    {"owner_id": {"$in": [user["_id"], project["owner_id"]]}},
+                ],
+            }
+        )
+    ]
+    return advise(state.rooms, default, estimate, library)

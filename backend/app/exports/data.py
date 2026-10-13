@@ -75,6 +75,8 @@ class ExportData:
 
     def size(self, room: RoomEstimateOut) -> str:
         stored = self.rooms[room.room_id]
+        if stored.parts:
+            return f"{len(stored.parts)} rectangles"
         if stored.length_mm is None or stored.width_mm is None:
             return "by area"
         return f"{format_length(stored.length_mm, stored.unit)} × {format_length(stored.width_mm, stored.unit)}"

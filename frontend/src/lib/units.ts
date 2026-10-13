@@ -37,8 +37,9 @@ export function formatLength(mm: string | null, unit: LengthUnit): string {
 }
 
 export function roomArea(room: Room, unit: AreaUnit): number | null {
-  const mm2 =
-    room.length_mm !== null && room.width_mm !== null
+  const mm2 = room.parts?.length
+    ? room.parts.reduce((sum, p) => sum + Number(p.length_mm) * Number(p.width_mm), 0)
+    : room.length_mm !== null && room.width_mm !== null
       ? Number(room.length_mm) * Number(room.width_mm)
       : room.area_mm2 !== null
         ? Number(room.area_mm2)

@@ -285,24 +285,42 @@ function DefaultsCard({
 }: {
   defaults: ProjectMaterial
   busy: boolean
-  onSave: (data: { tile_id: string | null; layout: Layout; breakage_pct: string; price: Price | null }) => Promise<boolean>
+  onSave: (data: {
+    tile_id: string | null
+    layout: Layout
+    breakage_pct: string
+    price: Price | null
+    brick_offset_pct: string
+    reuse_offcuts: boolean
+  }) => Promise<boolean>
 }) {
   const [tile, setTile] = useState<TileRef | null>(defaults.tile)
   const [layout, setLayout] = useState<Layout>(defaults.layout)
   const [buffer, setBuffer] = useState(String(Number(defaults.breakage_pct)))
   const [price, setPrice] = useState<Price | null>(defaults.price)
+  const [offset, setOffset] = useState(String(Number(defaults.brick_offset_pct)))
+  const [reuse, setReuse] = useState(defaults.reuse_offcuts)
   const [error, setError] = useState('')
 
   const dirty =
     tile?.id !== defaults.tile?.id ||
     layout !== defaults.layout ||
     Number(buffer) !== Number(defaults.breakage_pct) ||
-    JSON.stringify(price) !== JSON.stringify(defaults.price)
+    JSON.stringify(price) !== JSON.stringify(defaults.price) ||
+    Number(offset) !== Number(defaults.brick_offset_pct) ||
+    reuse !== defaults.reuse_offcuts
 
   async function save() {
     setError('')
     try {
-      await onSave({ tile_id: tile?.id ?? null, layout, breakage_pct: buffer.trim() || '0', price })
+      await onSave({
+        tile_id: tile?.id ?? null,
+        layout,
+        breakage_pct: buffer.trim() || '0',
+        price,
+        brick_offset_pct: offset.trim() || '50',
+        reuse_offcuts: reuse,
+      })
     } catch (err) {
       setError((err as Error).message)
     }
@@ -338,6 +356,20 @@ function DefaultsCard({
           <span className="mb-1 block text-slate-600">Price (optional)</span>
           <PriceInput value={price} onChange={setPrice} />
         </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+        <label className="flex items-center gap-1.5" title="Brick-offset layouts: how far each row is shifted">
+          <span className="text-slate-600">Brick offset</span>
+          <select value={offset} onChange={(e) => setOffset(e.target.value)} className="rounded-md border border-slate-300 bg-white px-2 py-1.5">
+            <option value="50">Half a tile (1/2)</option>
+            <option value="33.333333">A third (1/3)</option>
+            <option value="25">A quarter (1/4)</option>
+          </select>
+        </label>
+        <label className="flex items-center gap-2" title="Narrow cut pieces are cut from offcuts of other cut tiles. Needs planned cutting.">
+          <input type="checkbox" checked={reuse} onChange={(e) => setReuse(e.target.checked)} className="accent-brand-600" />
+          Count on reusing offcuts in the quantities
+        </label>
       </div>
       <div className="flex items-center gap-3">
         <Button onClick={save} disabled={!dirty || busy}>

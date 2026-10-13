@@ -14,7 +14,12 @@ import { editableLength, lengthUnitLabels } from '../../lib/units.ts'
 import { Button, ErrorText } from '../ui.tsx'
 import { TilePicker } from './TilePicker.tsx'
 
-export const LAYOUT_LABELS: Record<Layout, string> = { straight: 'Straight', diagonal: 'Diagonal' }
+export const LAYOUT_LABELS: Record<Layout, string> = {
+  straight: 'Straight',
+  diagonal: 'Diagonal',
+  brick: 'Brick offset',
+  herringbone: 'Herringbone',
+}
 export const BASIS_LABELS: Record<PriceBasis, string> = {
   box: 'per box',
   tile: 'per tile / piece',

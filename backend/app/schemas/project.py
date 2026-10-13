@@ -47,6 +47,17 @@ class RoomSource(BaseModel):
     text: str = ""  # exactly what was read
 
 
+class RoomPart(BaseModel):
+    """One rectangle of a non-rectangular room (PRD 4.16), placed from the room's top-left."""
+
+    id: str
+    label: str = Field(default="", max_length=40)
+    length_mm: DecimalStr = Field(gt=0)
+    width_mm: DecimalStr = Field(gt=0)
+    x_mm: DecimalStr = Field(default=Decimal(0), ge=0)
+    y_mm: DecimalStr = Field(default=Decimal(0), ge=0)
+
+
 class ExtractedValues(BaseModel):
     """What extraction read, kept unchanged through later edits (PRD 4.13), so corrections
     can be measured against it."""
@@ -77,15 +88,28 @@ class Room(BaseModel):
     # length and width are both set.
     area_mm2: DecimalStr | None = Field(default=None, gt=0)
 
+    # A non-rectangular room split into rectangles (PRD 4.16). When set, length, width and
+    # area are cleared: the parts are the room.
+    parts: list[RoomPart] = Field(default_factory=list, max_length=12)
+    # Perimeter for skirting and wall tiles where it can't be worked out (split or area-only
+    # rooms). None: 2 × (length + width) for a rectangular room.
+    perimeter_mm: DecimalStr | None = Field(default=None, gt=0)
+
     @property
     def floor_area_mm2(self) -> Decimal | None:
+        if self.parts:
+            return sum((p.length_mm * p.width_mm for p in self.parts), Decimal(0))
         if self.length_mm is not None and self.width_mm is not None:
             return self.length_mm * self.width_mm
         return self.area_mm2
 
     @property
     def area_only(self) -> bool:
-        return (self.length_mm is None or self.width_mm is None) and self.area_mm2 is not None
+        return (
+            not self.parts
+            and (self.length_mm is None or self.width_mm is None)
+            and self.area_mm2 is not None
+        )
 
     origin: RoomOrigin = RoomOrigin.MANUAL
     # Extraction metadata (PRD 4.2, 6.3): set only for rooms read from a blueprint.

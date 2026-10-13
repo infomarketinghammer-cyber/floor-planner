@@ -17,6 +17,11 @@ class RoomEstimateOut(BaseModel):
     layout: Layout
     method: Literal["grid", "area", "roll"]
     kind: ProductKind = ProductKind.TILE
+    # Layouts (PRD 4.16): tiles that need cutting, and the count if offcuts were reused (None
+    # where reuse isn't modelled: diagonal, herringbone, planks, rolls, area-only rooms).
+    cut_tiles: int | None = None
+    tiles_if_reused: int | None = None
+    reuse_applied: bool = False  # the tile count above already counts on reused offcuts
     # Roll goods only: roll to buy (boxes and tiles are 0) and how it's cut.
     linear_mm: DecimalStr | None = None
     drops: int | None = None

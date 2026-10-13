@@ -5,6 +5,7 @@ import { formatMoney, type MoneyFormat } from '../../lib/money.ts'
 import { formatLength } from '../../lib/units.ts'
 
 type View = 'basic' | 'detailed'
+const LAYOUT_NAMES = { straight: 'Straight', diagonal: 'Diagonal', brick: 'Brick offset', herringbone: 'Herringbone' } as const
 type Grouping = 'none' | 'floor' | 'type'
 
 const VIEW_KEY = 'fp.results.view'
@@ -228,8 +229,9 @@ function ResultRow({
   selected: boolean
   onSelect: () => void
 }) {
-  const size =
-    room && room.length_mm !== null && room.width_mm !== null
+  const size = room?.parts.length
+    ? `${room.parts.length} rectangles`
+    : room && room.length_mm !== null && room.width_mm !== null
       ? `${formatLength(room.length_mm, room.unit)} × ${formatLength(room.width_mm, room.unit)}`
       : 'by area'
   const usable = Number(r.usable_area_mm2)
@@ -260,11 +262,13 @@ function ResultRow({
           {color && <span aria-hidden="true" className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: color }} />}
           {r.tile.size_label}
         </span>
-        {detailed && <Sub>{r.layout === 'diagonal' ? 'Diagonal' : 'Straight'}</Sub>}
+        {detailed && <Sub>{LAYOUT_NAMES[r.layout]}</Sub>}
       </Td>
       {detailed && (
         <Td right>
           {r.kind === 'roll' ? '–' : r.tiles_needed}
+          {r.cut_tiles !== null && <Sub>{r.cut_tiles} cut</Sub>}
+          {r.reuse_applied && <Sub>offcuts reused</Sub>}
           <Sub>
             {r.method === 'roll'
               ? `${r.drops ? plural(r.drops, 'drop') : 'by area'}`

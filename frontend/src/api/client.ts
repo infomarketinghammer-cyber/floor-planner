@@ -5,6 +5,8 @@ import type {
   OpeningKind,
   SkirtingSettings,
   Suggestion,
+  RoomLayout,
+  TileAdvice,
   SundriesSettings,
   AdminAccuracy,
   EvalEntry,
@@ -193,9 +195,34 @@ export const api = {
   materials: {
     setDefault: (
       projectId: string,
-      data: { tile_id: string | null; layout: Layout; breakage_pct: string; price: Price | null },
+      data: {
+        tile_id: string | null
+        layout: Layout
+        breakage_pct: string
+        price: Price | null
+        brick_offset_pct: string
+        reuse_offcuts: boolean
+      },
       version: number,
     ) => request<RoomsState>(`/projects/${projectId}/materials/default`, json('PUT', { ...data, version })),
+    /** Split a room into rectangles (PRD 4.16); an empty list makes it one rectangle again. */
+    setRoomParts: (
+      projectId: string,
+      roomId: string,
+      data: {
+        parts: { label: string; length: string; width: string; x: string; y: string }[]
+        perimeter: string | null
+        unit: LengthUnit
+      },
+      version: number,
+    ) =>
+      request<RoomsState>(`/projects/${projectId}/rooms/${roomId}/parts`, json('PUT', {
+        ...data,
+        parts: data.parts.map((p) => ({ ...p, x: p.x || null, y: p.y || null })),
+        version,
+      })),
+    roomLayout: (projectId: string, roomId: string) => request<RoomLayout>(`/projects/${projectId}/rooms/${roomId}/layout`),
+    tileAdvice: (projectId: string) => request<TileAdvice>(`/projects/${projectId}/tile-advice`),
     /** Bulk change for selected rooms: set fields, reset fields to the default, and/or skip. */
     setRooms: (
       projectId: string,

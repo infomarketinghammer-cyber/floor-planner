@@ -88,7 +88,7 @@ export interface ExtractionResult {
 }
 
 // --- Material assignment (PRD 4.6) ---------------------------------------------------------
-export type Layout = 'straight' | 'diagonal'
+export type Layout = 'straight' | 'diagonal' | 'brick' | 'herringbone'
 export type PriceBasis = 'box' | 'tile' | 'sqft' | 'sqm' | 'lm' // lm: per running metre (roll goods)
 /** How a flooring product is sold and laid (PRD 4.15). */
 export type ProductKind = 'tile' | 'plank' | 'roll'
@@ -125,6 +125,8 @@ export interface ProjectMaterial {
   layout: Layout
   breakage_pct: string
   price: Price | null
+  brick_offset_pct: string // brick layout: how far each row is shifted (PRD 4.16)
+  reuse_offcuts: boolean // quantities count on reusing offcuts
 }
 
 export interface EffectiveMaterial extends ProjectMaterial {
@@ -175,6 +177,8 @@ export interface Room {
   exclusions: Exclusion[]
   area_mm2: string | null // odd-shaped rooms known only by area
   extracted: ExtractedValues | null // what the plan reader read; never changes
+  parts: RoomPart[] // a non-rectangular room split into rectangles (PRD 4.16)
+  perimeter_mm: string | null
   openings: Opening[] // doors and windows (PRD 4.15)
   walls: WallTiling | null // null: walls not tiled
   skirting: boolean | null // null: follow the project setting
@@ -325,6 +329,9 @@ export interface RoomEstimate {
   layout: Layout
   method: 'grid' | 'area' | 'roll'
   kind: ProductKind
+  cut_tiles: number | null // tiles that need cutting (PRD 4.16)
+  tiles_if_reused: number | null // the count if offcuts were reused (null: not modelled)
+  reuse_applied: boolean // tiles_needed already counts on reused offcuts
   linear_mm: string | null // roll goods: running length to buy (boxes are 0)
   drops: number | null
   method_reason: string
@@ -674,4 +681,42 @@ export interface Suggestion {
     height_mm: string | null
     needs_length: boolean
   } | null
+}
+
+// --- Layouts (PRD 4.16) ----------------------------------------------------------------------------
+export interface RoomPart {
+  id: string
+  label: string
+  length_mm: string
+  width_mm: string
+  x_mm: string
+  y_mm: string
+}
+
+export interface RoomLayout {
+  room_id: string
+  name: string
+  layout: Layout | 'roll'
+  tile: TileRef
+  parts: [number, number, number, number][] // x, y, length, width (mm)
+  tiles: { points: [number, number][]; cut: boolean }[]
+  total: number
+  cut: number
+  too_many: boolean
+  estimate_tiles: number | null
+  note: string | null
+}
+
+export interface TileOption {
+  tile: TileRef
+  boxes: number
+  tiles_bought: number
+  extra_area_mm2: string
+  extra_pct: string
+}
+
+export interface TileAdvice {
+  rooms: { room_id: string; name: string; current: TileOption; best: TileOption | null; alternatives: TileOption[] }[]
+  project: { rooms: number; current: TileOption; best: TileOption | null } | null
+  summary: string | null
 }

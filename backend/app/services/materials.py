@@ -81,6 +81,11 @@ async def load_tile_ref(tile_id: str, user: dict, project: dict) -> TileRef:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT, "That tile isn't in your library."
         )
+    return tile_ref_from_doc(doc)
+
+
+def tile_ref_from_doc(doc: dict) -> TileRef:
+    """A snapshot of a library tile document, as stored on rooms."""
     length, width = Decimal(doc["length_mm"]), Decimal(doc["width_mm"])
     return TileRef(
         id=str(doc["_id"]),

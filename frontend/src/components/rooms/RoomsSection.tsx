@@ -5,6 +5,7 @@ import { formatArea, plural, useAreaUnit } from '../../lib/format.ts'
 import { bareNumber, editableLength, formatLength, lengthUnitLabels, roomArea } from '../../lib/units.ts'
 import { Button, ErrorText } from '../ui.tsx'
 import { PlanViewer } from './PlanViewer.tsx'
+import { ShapeDialog } from './ShapeDialog.tsx'
 import { AddRoomForm, ImportPanel, UNITS, type ImportOptions, type NewRoom } from './RoomForms.tsx'
 import type { RoomsReview } from './useRoomsReview.ts'
 
@@ -30,6 +31,7 @@ interface RoomActions {
   followPlanUnit: () => Promise<boolean>
   toggleConfirm: () => Promise<boolean>
   remove: () => Promise<boolean>
+  editShape: () => void
 }
 
 /** Room review (PRD 4.3/4.4). `review` is shared with the materials section (one undo history). */
@@ -38,6 +40,7 @@ export function RoomsSection({ projectId, review }: { projectId: string; review:
   const [panel, setPanel] = useState<Panel>('none')
   const [filter, setFilter] = useState<Filter>('all')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [shaping, setShaping] = useState<ReviewRoom | null>(null)
   const [areaUnit] = useAreaUnit()
 
   const rooms = useMemo(() => state?.rooms ?? [], [state])
@@ -90,6 +93,7 @@ export function RoomsSection({ projectId, review }: { projectId: string; review:
         if (selectedId === room.id) setSelectedId(null)
         return mutate(`Delete ${room.name}`, () => api.rooms.remove(projectId, room.id))
       },
+      editShape: () => setShaping(room),
     }
   }
 
@@ -257,6 +261,20 @@ export function RoomsSection({ projectId, review }: { projectId: string; review:
             Click a room to see where it was read on the plan. Edits save automatically; press Ctrl+Z to undo.
           </p>
         </>
+      )}
+      {shaping && (
+        <ShapeDialog
+          room={shaping}
+          onClose={() => setShaping(null)}
+          onSave={async (data) => {
+            await mutate(
+              `Change the shape of ${shaping.name}`,
+              () => api.materials.setRoomParts(projectId, shaping.id, data, state!.version),
+              { rethrow: true },
+            )
+            setShaping(null)
+          }}
+        />
       )}
     </section>
   )
@@ -637,6 +655,25 @@ function PlanRead({ room }: { room: ReviewRoom }) {
   )
 }
 
+/** A split room's parts, e.g. "Main 12 × 10 + Nook 4 × 6"; opens the shape editor. */
+function ShapeButton({ room, actions }: { room: ReviewRoom; actions: RoomActions }) {
+  const text = room.parts
+    .map((p) => `${p.label} ${formatLength(p.length_mm, room.unit)} × ${formatLength(p.width_mm, room.unit)}`)
+    .join(' + ')
+  return (
+    <button
+      onClick={(e) => {
+        e.stopPropagation()
+        actions.editShape()
+      }}
+      className="text-left text-sm text-brand-700 hover:underline"
+      title="Edit the room's rectangles"
+    >
+      {text}
+    </button>
+  )
+}
+
 function LengthField({
   room,
   side,
@@ -709,12 +746,20 @@ function RoomRow({
           onCommit={(floor) => actions.update({ floor: floor || null }, `Change floor of ${room.name}`)}
         />
       </td>
-      <td className="px-1 py-1.5">
-        <LengthField room={room} side="length" actions={actions} />
-      </td>
-      <td className="px-1 py-1.5">
-        <LengthField room={room} side="width" actions={actions} />
-      </td>
+      {room.parts.length ? (
+        <td colSpan={2} className="px-3 py-2.5">
+          <ShapeButton room={room} actions={actions} />
+        </td>
+      ) : (
+        <>
+          <td className="px-1 py-1.5">
+            <LengthField room={room} side="length" actions={actions} />
+          </td>
+          <td className="px-1 py-1.5">
+            <LengthField room={room} side="width" actions={actions} />
+          </td>
+        </>
+      )}
       <td className="px-1 py-1.5">
         <UnitPicker room={room} planUnit={planUnit} actions={actions} />
       </td>
@@ -723,6 +768,16 @@ function RoomRow({
         <Issues room={room} />
       </td>
       <td className="px-3 py-2.5 text-right">
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            actions.editShape()
+          }}
+          title="Split a room that isn't a rectangle into rectangles"
+          className="mr-3 text-sm text-slate-600 hover:underline"
+        >
+          Shape
+        </button>
         <button
           onClick={(e) => {
             e.stopPropagation()
@@ -771,12 +826,19 @@ function RoomCard({
         className="font-medium"
         onCommit={(name) => (name ? actions.update({ name }, `Rename ${room.name}`) : Promise.resolve(false))}
       />
-      <div className="grid grid-cols-[1fr_auto_1fr_7rem] items-center gap-1 text-sm">
-        <LengthField room={room} side="length" actions={actions} />
-        <span className="text-slate-400">×</span>
-        <LengthField room={room} side="width" actions={actions} />
-        <UnitPicker room={room} planUnit={planUnit} actions={actions} />
-      </div>
+      {room.parts.length ? (
+        <div className="flex items-center justify-between gap-2 text-sm">
+          <ShapeButton room={room} actions={actions} />
+          <UnitPicker room={room} planUnit={planUnit} actions={actions} />
+        </div>
+      ) : (
+        <div className="grid grid-cols-[1fr_auto_1fr_7rem] items-center gap-1 text-sm">
+          <LengthField room={room} side="length" actions={actions} />
+          <span className="text-slate-400">×</span>
+          <LengthField room={room} side="width" actions={actions} />
+          <UnitPicker room={room} planUnit={planUnit} actions={actions} />
+        </div>
+      )}
       <EditableText
         key={room.floor ?? ''}
         value={room.floor ?? ''}

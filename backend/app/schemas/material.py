@@ -23,6 +23,8 @@ DEFAULT_BREAKAGE_PCT = Decimal(5)
 class Layout(StrEnum):
     STRAIGHT = "straight"
     DIAGONAL = "diagonal"
+    BRICK = "brick"  # running bond: each row offset (PRD 4.16)
+    HERRINGBONE = "herringbone"
 
 
 class PriceBasis(StrEnum):
@@ -78,6 +80,10 @@ class ProjectMaterial(BaseModel):
     layout: Layout = Layout.STRAIGHT
     breakage_pct: DecimalStr = Field(default=DEFAULT_BREAKAGE_PCT, ge=0, le=50)
     price: Price | None = None
+    # Layout options (PRD 4.16): how far each brick-offset row is shifted, and whether the
+    # quantities count on reusing offcuts (off: every cut piece costs a tile, the safe default).
+    brick_offset_pct: DecimalStr = Field(default=Decimal(50), ge=10, le=50)
+    reuse_offcuts: bool = False
 
 
 MaterialField = Literal["tile", "layout", "breakage_pct", "price"]
@@ -113,6 +119,8 @@ class DefaultMaterialIn(BaseModel):
     layout: Layout = Layout.STRAIGHT
     breakage_pct: Decimal = Field(default=DEFAULT_BREAKAGE_PCT, ge=0, le=50)
     price: Price | None = None
+    brick_offset_pct: Decimal = Field(default=Decimal(50), ge=10, le=50)
+    reuse_offcuts: bool = False
     version: int
 
 

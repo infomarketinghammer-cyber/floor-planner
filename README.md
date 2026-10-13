@@ -316,3 +316,19 @@ Deleting a project deletes its outcomes and feedback.
   a kitchen backsplash, no wood or carpet in wet rooms. Applied only when the user clicks.
 - Engine: `backend/app/engine/extras.py`; service: `backend/app/services/extras.py`. Everything
   flows into costs, the PDF, the Excel workbook and the shopping list.
+
+## Layouts and optimisation (PRD 4.16)
+
+- **Layouts**: straight (grid), diagonal (area + 15%), brick offset (rows shifted by 1/2, 1/3 or
+  1/4 of a tile, counted row by row) and herringbone (every tile of the zigzag touching the room,
+  counted geometrically). Engine: `backend/app/engine/layouts.py`.
+- **Tile layout drawing** per room (`GET .../rooms/:id/layout`), cut tiles marked. It comes from
+  the same geometry as the count, so the drawing and the quantity agree.
+- **Offcut reuse**: narrow edge pieces cut from other edge offcuts (straight), row ends starting
+  other rows (brick). Results show the saving; "Count on reusing offcuts" in the project defaults
+  uses it in the quantities (off by default: every cut piece costs a tile).
+- **Non-rectangular rooms**: "Shape" splits a room into rectangles, each counted on its own, with
+  an optional perimeter for skirting and wall tiles.
+- **Best tile size** (`GET .../tile-advice`): each room recounted with the other suitable tiles in
+  the library (same unit system, slip-resistant stays slip-resistant), plus one tile for the whole
+  project, with a plain-language waste tip.

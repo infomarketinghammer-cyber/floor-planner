@@ -2,6 +2,8 @@ import { useState } from 'react'
 import type { Estimate } from '../../api/types.ts'
 import { BudgetAlert, CostSection } from '../cost/CostSection.tsx'
 import { FeedbackPanel } from '../feedback/FeedbackPanel.tsx'
+import { TileAdvicePanel } from '../layout/TileAdvicePanel.tsx'
+import { TileLayoutView } from '../layout/TileLayoutView.tsx'
 import { ResultsOverlay } from '../results/ResultsOverlay.tsx'
 import { ResultsTable } from '../results/ResultsTable.tsx'
 import { tileColors } from '../results/tileColors.ts'
@@ -91,6 +93,8 @@ function Ready({
         )}
       </dl>
 
+      <TileAdvicePanel projectId={projectId} review={review} estimate={estimate} />
+
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
         <h3 className="border-b border-slate-100 px-4 py-3 text-sm font-semibold">By tile</h3>
         <ul className="divide-y divide-slate-100">
@@ -142,6 +146,13 @@ function Ready({
         onSelect={setSelectedId}
       />
       <FeedbackPanel projectId={projectId} estimate={estimate} selectedRoomId={selectedId} />
+      <TileLayoutView
+        projectId={projectId}
+        estimate={estimate}
+        roomId={selectedId}
+        version={review.state!.version}
+        onSelect={setSelectedId}
+      />
       <ResultsOverlay
         projectId={projectId}
         estimate={estimate}
