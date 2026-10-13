@@ -60,7 +60,10 @@ SETTINGS = CostSettings(
 )
 
 
-def priced(price=Price(amount=D(800))):
+PRICE_800 = Price(amount=D(800))
+
+
+def priced(price=PRICE_800):
     state = review_state({"rooms": [r.model_dump() for r in ROOMS]})
     default = ProjectMaterial(tile=T600, breakage_pct=D(5), price=price)
     estimate = build_estimate(state, default)
