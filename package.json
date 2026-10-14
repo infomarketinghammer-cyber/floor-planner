@@ -2,12 +2,10 @@
   "name": "floor-planner",
   "private": true,
   "scripts": {
-    "dev": "concurrently -k -n api,gateway,web -c blue,magenta,green \"npm:dev:backend\" \"npm:dev:gateway\" \"npm:dev:frontend\"",
+    "dev": "concurrently -k -n api,web -c blue,green \"npm:dev:backend\" \"npm:dev:frontend\"",
     "dev:backend": "node scripts/dev-backend.mjs",
-    "dev:gateway": "npm --prefix gateway run dev",
     "dev:frontend": "npm --prefix frontend run dev",
     "build": "npm --prefix frontend run build",
-    "start": "cross-env NODE_ENV=production npm --prefix gateway start",
     "test": "node scripts/dev-backend.mjs test"
   },
   "devDependencies": {

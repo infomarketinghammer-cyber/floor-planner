@@ -13,6 +13,16 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 720
 
+    # "production" makes the session cookie Secure (HTTPS only) and sends HSTS.
+    environment: str = "development"
+    cookie_name: str = "fp_session"
+    # Proxies in front of the API (e.g. Vercel, then Render's load balancer), for the visitor's
+    # IP used by rate limits. Each proxy appends to X-Forwarded-For: too low and every visitor
+    # shares a proxy's IP, too high and visitors can fake theirs. See README "Deployment".
+    trust_proxy: int = 0
+    # Guest calls carry the whole project, plan files included when needed (PRD 4.12).
+    max_guest_call_mb: int = 80
+
     admin_email: str | None = None
     admin_password: str | None = None
 
@@ -45,6 +55,10 @@ class Settings(BaseSettings):
     # The address people open the app at, e.g. "https://floorplanner.vercel.app". Used for links
     # in emails. Empty: emails say where to go without a link.
     app_url: str = ""
+
+    @property
+    def production(self) -> bool:
+        return self.environment.lower() == "production"
 
 
 @lru_cache

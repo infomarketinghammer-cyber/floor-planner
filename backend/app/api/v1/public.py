@@ -1,9 +1,10 @@
-"""Public information, no login needed (served by the gateway under /api/public)."""
+"""Public information, no login needed."""
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel
 
 from app.core import crypto
+from app.core.client_ip import client_ip
 from app.core.config import get_settings
 from app.db.mongo import get_db
 from app.services.collab import shared_view
@@ -41,6 +42,13 @@ async def privacy() -> PrivacyOut:
         retention="Kept until you delete them",
         max_upload_mb=s.max_upload_mb,
     )
+
+
+@router.get("/ip")
+async def my_ip(request: Request) -> dict:
+    """The address rate limits see for the caller: for checking TRUST_PROXY after deploying.
+    It's the caller's own address, so nothing is revealed."""
+    return {"ip": client_ip(request)}
 
 
 @router.get("/shared/{token}")

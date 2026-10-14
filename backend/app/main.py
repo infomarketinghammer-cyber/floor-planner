@@ -2,7 +2,8 @@ import logging
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
 from app.api.v1 import api_router
 from app.core import crypto
@@ -52,7 +53,42 @@ async def lifespan(_: FastAPI):
     await mongo.close()
 
 
-app = FastAPI(title="Floor Planner API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(
+    title="Floor Planner API",
+    version="0.1.0",
+    lifespan=lifespan,
+    # No public API docs in production: the app is the only client.
+    docs_url=None if get_settings().production else "/docs",
+    redoc_url=None,
+    openapi_url=None if get_settings().production else "/openapi.json",
+)
+
+
+@app.middleware("http")
+async def limits_and_headers(request: Request, call_next):
+    """Refuse oversized requests before reading them, and add security headers."""
+    s = get_settings()
+    guest = request.url.path.startswith("/api/v1/guest/")
+    limit_mb = s.max_guest_call_mb if guest else s.max_upload_mb + 1  # 1 MB for form overhead
+    length = request.headers.get("content-length")
+    if length and length.isdigit() and int(length) > limit_mb * 1_048_576:
+        detail = (
+            f"This project is too large to work on without an account (over {s.max_guest_call_mb} MB). Sign in to keep working."
+            if guest
+            else f"The file is too large; the limit is {s.max_upload_mb} MB."
+        )
+        return JSONResponse({"detail": detail}, status_code=413)
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    if s.production:  # browsers then stay on HTTPS (PRD 4.14, encryption in transit)
+        response.headers.setdefault(
+            "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+        )
+    return response
+
+
 app.include_router(api_router)
 
 

@@ -13,7 +13,6 @@ import base64
 import json
 import re
 import time
-from collections import defaultdict, deque
 from typing import Any, Literal
 
 import httpx
@@ -23,7 +22,9 @@ from fastapi import APIRouter, HTTPException, Request, status
 from mongomock_motor import AsyncMongoMockClient
 from pydantic import BaseModel, Field
 
+from app.core.client_ip import client_ip
 from app.core.guest import GuestScope
+from app.core.ratelimit import RateLimiter
 from app.db.mongo import get_db
 from app.services.project_summary import project_out as project_summary
 
@@ -51,8 +52,9 @@ ALLOWED: list[tuple[str, str]] = [
 ]
 _ALLOWED = [(set(m.split("|")), re.compile(f"^{p}$")) for m, p in ALLOWED]
 
-RATE_LIMIT, RATE_WINDOW_S = 600, 600  # calls per IP per 10 minutes
-_calls: dict[str, deque] = defaultdict(deque)
+_guest_calls = RateLimiter(
+    600, 600, "Too many requests. Wait a few minutes and try again."
+)  # per IP
 CATALOG_TTL_S = 300
 _catalog: tuple[float, list[dict]] = (0.0, [])
 
@@ -100,19 +102,6 @@ def _dump(obj: Any) -> Any:
     return json.loads(json_util.dumps(obj, json_options=RELAXED_JSON_OPTIONS))
 
 
-def _check_rate(ip: str) -> None:
-    now = time.monotonic()
-    calls = _calls[ip]
-    while calls and now - calls[0] > RATE_WINDOW_S:
-        calls.popleft()
-    if len(calls) >= RATE_LIMIT:
-        raise HTTPException(
-            status.HTTP_429_TOO_MANY_REQUESTS,
-            "Too many requests. Wait a few minutes and try again.",
-        )
-    calls.append(now)
-
-
 async def _catalog_tiles() -> list[dict]:
     """The shared catalogue, read from the real database (outside the sandbox) and cached."""
     global _catalog
@@ -133,14 +122,7 @@ def _allowed(method: str, path: str) -> bool:
 async def guest_call(body: GuestCallIn, request: Request) -> GuestCallOut:
     if not _allowed(body.method, body.path):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Sign in to use this.")
-    # The gateway sends the client IP it worked out from its trusted proxies; the first
-    # X-Forwarded-For entry (client-supplied, so spoofable) is only a fallback for local runs.
-    ip = (
-        request.headers.get("x-client-ip")
-        or (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
-        or (request.client.host if request.client else "unknown")
-    )
-    _check_rate(ip)
+    _guest_calls.check(client_ip(request))
 
     guest_oid = ObjectId(body.guest_id)
     catalog = await _catalog_tiles()

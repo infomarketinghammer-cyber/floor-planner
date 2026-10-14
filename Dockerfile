@@ -1,14 +1,5 @@
-# The server side as one container for Render: the gateway (public, owns the session cookie)
-# and the FastAPI backend (listening on localhost only, so it's reachable just through the
-# gateway). The React app is hosted separately (Vercel); see README "Deployment".
-
-# Gateway dependencies, built with npm, then only node and the modules are copied over.
-FROM node:22-slim AS gateway
-WORKDIR /gateway
-COPY gateway/package.json gateway/package-lock.json ./
-RUN npm ci --omit=dev
-COPY gateway/src ./src
-
+# The FastAPI backend for Render. The React app is hosted separately (Vercel), which forwards
+# /api/* here; see README "Deployment".
 FROM python:3.11-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -20,21 +11,16 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=gateway /usr/local/bin/node /usr/local/bin/node
-
-WORKDIR /app/backend
+WORKDIR /app
 COPY backend/requirements.txt ./
 RUN pip install -r requirements.txt
 COPY backend/app ./app
 
-COPY --from=gateway /gateway /app/gateway
-COPY deploy/start.sh /app/start.sh
-
-RUN useradd --create-home --uid 10001 app && chmod +x /app/start.sh
+RUN useradd --create-home --uid 10001 app
 USER app
 
-ENV NODE_ENV=production \
-    FASTAPI_URL=http://127.0.0.1:8000 \
+ENV ENVIRONMENT=production \
     PORT=10000
 EXPOSE 10000
-CMD ["/app/start.sh"]
+# Render sets $PORT. Proxy headers are read by app/core/client_ip.py (TRUST_PROXY), not uvicorn.
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT} --no-proxy-headers"]

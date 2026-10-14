@@ -3,7 +3,7 @@ import { Navigate, Outlet, useLocation } from 'react-router'
 import type { Role } from '../api/types.ts'
 import { homePathFor, useAuth } from './AuthContext.tsx'
 
-/** Route guard. Visual only: the gateway and FastAPI enforce roles on every API call. */
+/** Route guard. Visual only: FastAPI enforces roles on every API call. */
 export function RequireAuth({ roles }: { roles?: Role[] }) {
   const { user, loading } = useAuth()
   const location = useLocation()

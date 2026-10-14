@@ -3,10 +3,11 @@ from typing import Annotated
 import jwt
 from bson import ObjectId
 from bson.errors import InvalidId
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.core.activity import set_acting_user
+from app.core.config import get_settings
 from app.core.guest import guest_user
 from app.core.security import decode_access_token
 from app.db.mongo import get_db
@@ -23,16 +24,21 @@ def parse_object_id(value: str) -> ObjectId:
 
 
 async def get_current_user(
+    request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
 ) -> dict:
     guest = guest_user()  # set only by the guest dispatcher, for its internal call
     if guest is not None:
         return guest
     unauthorized = HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated")
-    if credentials is None:
+    # The browser sends the session cookie; scripts and tools can send a Bearer token.
+    token = (
+        credentials.credentials if credentials else request.cookies.get(get_settings().cookie_name)
+    )
+    if not token:
         raise unauthorized
     try:
-        payload = decode_access_token(credentials.credentials)
+        payload = decode_access_token(token)
     except jwt.PyJWTError:
         raise unauthorized from None
 

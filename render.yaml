@@ -1,4 +1,4 @@
-# Render blueprint: the gateway and API as one Docker web service (see Dockerfile).
+# Render blueprint: the FastAPI backend as a Docker web service (see Dockerfile).
 # New > Blueprint in Render, pick this repository, then fill in the values marked sync: false.
 # The frontend is deployed to Vercel separately (frontend/vercel.json).
 services:
@@ -10,8 +10,10 @@ services:
     # Starter or above: the free plan sleeps after 15 minutes idle (the first visit then takes
     # about a minute) and has little memory for reading large plans.
     plan: starter
-    healthCheckPath: /ready
+    healthCheckPath: /health
     envVars:
+      - key: ENVIRONMENT
+        value: production
       # MongoDB Atlas (or any MongoDB with TLS): mongodb+srv://user:password@cluster/...
       - key: MONGODB_URI
         sync: false
@@ -41,7 +43,8 @@ services:
         sync: false
       - key: DATA_LOCATION
         sync: false
-      # Proxies in front of the gateway (Vercel, then Render). Check the logs after deploying
-      # and adjust; see README "Deployment".
+      # Proxies in front of the API (Vercel, then Render's load balancer), for the visitor IP
+      # used by rate limits. Check https://<your-vercel-app>/api/public/ip after deploying;
+      # see README "Deployment".
       - key: TRUST_PROXY
         value: "2"

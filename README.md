@@ -7,22 +7,20 @@ assign tiles, and get per-room quantities, waste, boxes and cost. See [docs/](do
 
 ```
 Browser (React + Tailwind)
-   │  /api/*  (httpOnly session cookie)
+   │  /api/*  (httpOnly session cookie), mapped to /api/v1/* by Vite (dev) or Vercel (prod)
    ▼
-Express gateway  :4000   routing, auth cookie, role guards, rate limiting, serves React in prod
-   │  /api/v1/*  (Bearer JWT)
-   ▼
-FastAPI backend  :8000   business logic, extraction, deterministic calc engine, exports
+FastAPI backend  :8000   session, roles, rate limits, business logic, extraction, calc engine, exports
    │
    ▼
 MongoDB          :27017
 ```
 
-- **Express owns routing and the session.** On login/register it calls FastAPI, receives a JWT and
-  stores it in an `httpOnly`, `SameSite=Strict` cookie. Every `/api/*` request is authenticated and
-  role-checked at the gateway, then proxied to FastAPI as `/api/v1/*` with the token as a Bearer header.
-- **FastAPI re-checks everything** (token, user still active, role, ownership), so it is safe even if
-  the gateway is bypassed.
+- **FastAPI owns the session.** Login and register set the JWT in an `httpOnly`, `SameSite=Strict`
+  cookie (`Secure` in production); page scripts never see it. Every request is checked for the
+  token, the user still being active, their role and their access to the project. A `Bearer`
+  token also works, for scripts and tests.
+- **Same origin.** The browser only talks to the frontend's address, which forwards `/api/*` to
+  FastAPI, so the cookie stays first-party and no CORS is needed.
 - **The calculation engine** (`backend/app/engine`) is pure, deterministic Python using `Decimal`
   millimetres. No AI is ever called from it (PRD 6.3).
 
@@ -33,13 +31,14 @@ MongoDB          :27017
 | `contractor` | Self-registration at `/register`              | Manage their own projects                                           |
 | `admin`      | Seeded from `ADMIN_EMAIL`/`ADMIN_PASSWORD` on first start, or promoted by an admin | Everything a contractor can, see all projects, manage users (role, enable/disable) |
 
-Route guards:
+Route guards (all in FastAPI):
 
-| Path              | Gateway                 | FastAPI                    |
-| ----------------- | ----------------------- | -------------------------- |
-| `/api/auth/*`     | public, rate-limited    | public                     |
-| `/api/projects/*` | contractor, admin       | owner only (admin: all)    |
-| `/api/admin/*`    | admin                   | admin                      |
+| Path              | Who                                                    |
+| ----------------- | ------------------------------------------------------ |
+| `/api/auth/*`     | public, rate-limited per IP and email                  |
+| `/api/public/*`, `/api/guest/*` | public (guests are rate-limited per IP)  |
+| `/api/projects/*` | people with access to the project, in their role (admin: all) |
+| `/api/admin/*`    | admin                                                  |
 
 ## Project layout
 
@@ -51,11 +50,6 @@ floor-planner/
 │       ├── auth/      AuthContext, RequireAuth route guard
 │       ├── components/ layout and shared UI
 │       └── pages/     Login, Register, Projects, admin/
-├── gateway/           Express 5
-│   └── src/
-│       ├── server.js  route groups, role guards, proxy, static serving
-│       ├── routes/    auth (login/register/logout/me + session cookie)
-│       └── middleware/ authenticate, requireRole
 ├── backend/           FastAPI (Python 3.11+)
 │   ├── app/
 │   │   ├── api/v1/    routers: auth, projects, files, rooms, materials, cost, exports, feedback, admin
@@ -222,7 +216,6 @@ Prerequisites: Node 22+, Python 3.11+, MongoDB running on `localhost:27017`.
 ```bash
 # 1. Install JS dependencies
 npm install
-npm --prefix gateway install
 npm --prefix frontend install
 
 # 2. Backend virtualenv
@@ -231,35 +224,30 @@ py -3.11 -m venv .venv            # macOS/Linux: python3 -m venv .venv
 .venv\Scripts\pip install -r requirements-dev.txt   # macOS/Linux: .venv/bin/pip ...
 cd ..
 
-# 3. Environment: copy the examples and set the SAME long random JWT_SECRET in both
+# 3. Environment: copy the example and set a long random JWT_SECRET
 cp backend/.env.example backend/.env
-cp gateway/.env.example gateway/.env
 ```
 
 ## Run
 
 ```bash
-npm run dev     # FastAPI :8000, Express :4000, Vite :5173 — open http://localhost:5173
+npm run dev     # FastAPI :8000, Vite :5173 — open http://localhost:5173
 npm test        # backend tests
 ```
 
-Production: `npm run build` then `npm start`. Express serves `frontend/dist` and the API on one port.
-Run FastAPI separately (e.g. `uvicorn app.main:app --host 127.0.0.1 --port 8000`) and set
-`NODE_ENV=production` so the session cookie is `Secure` (requires HTTPS).
+Production: see "Deployment" below.
 
 Note: dev auto-reload for the backend uses `watchfiles` instead of `uvicorn --reload`, because
 uvicorn's reloader hangs on Windows when its output is piped.
 
-## Deployment: Vercel (frontend) + Render (server)
+## Deployment: Vercel (frontend) + Render (backend)
 
 ```
-browser ──> Vercel: React app, and /api/* rewritten to ──> Render: gateway ──> FastAPI (localhost)
-                                                                              └─> MongoDB Atlas
+browser ──> Vercel: React app, and /api/* rewritten to /api/v1/* on ──> Render: FastAPI ──> MongoDB Atlas
 ```
 
 The browser only ever talks to the Vercel address, so the session cookie stays first-party
-(`SameSite=Strict`, `Secure`) and no CORS is needed. On Render, the gateway and FastAPI run in
-one Docker container (`Dockerfile`, `deploy/start.sh`); FastAPI listens on localhost only.
+(`SameSite=Strict`, `Secure`) and no CORS is needed. Render runs FastAPI from the `Dockerfile`.
 
 1. **MongoDB**: create a MongoDB Atlas cluster (TLS is on by default), a database user, and
    allow Render's outbound IPs (or 0.0.0.0/0 with a strong password). Plan files are stored in
@@ -272,10 +260,10 @@ one Docker container (`Dockerfile`, `deploy/start.sh`); FastAPI listens on local
 3. **Vercel**: import the repository with **Root Directory `frontend`**. Edit
    `frontend/vercel.json` so the `/api/:path*` destination is your Render URL (the default
    assumes the service is named `floor-planner-api`).
-4. **Client IP for rate limits**: sign in once, then look at the Render logs: each line starts
-   with the IP the gateway sees. If it's your own IP, `TRUST_PROXY` is right. If it's a Vercel
-   or Render address, raise it by one; if you can make it show a made-up IP by sending your own
-   `X-Forwarded-For` header, lower it.
+4. **Client IP for rate limits**: open `https://<your-vercel-app>/api/public/ip`. If it shows
+   your own IP, `TRUST_PROXY` is right. If it shows a Vercel or Render address, raise it by one.
+   If sending your own header (`curl -H "X-Forwarded-For: 1.2.3.4" .../api/public/ip`) makes it
+   show `1.2.3.4`, lower it.
 5. **Check**: sign up, upload a plan (try one near the 25 MB limit: Vercel's proxy must accept
    it), export a PDF (check the ₹ sign), and open a share link.
 
@@ -284,7 +272,7 @@ Limits to know:
   vision model can take longer: the reading still finishes and saves the rooms, but the browser
   shows an error, and the rooms appear after a refresh. Keep `VISION_EFFORT` at `medium` or
   lower in production if this happens often.
-- Guest rate limits and the email-per-hour limit are kept in memory: run one instance (the
+- Rate limits (sign-in, guests, emails per hour) are kept in memory: run one instance (the
   Render default), or they apply per instance.
 - DWG files need the ODA File Converter, which isn't in the container; users are asked for DXF
   or PDF instead.
@@ -333,8 +321,8 @@ Deleting a project deletes its outcomes and feedback.
   evaluation copies) is encrypted with AES-256-GCM. Files saved earlier keep working; convert them
   with `python -m app.maintenance encrypt-files`. Back the key up: files can't be read without it.
   For database fields, use MongoDB's encrypted storage (Atlas encrypts at rest by default).
-- **Encryption in transit**: in production the gateway redirects HTTP to HTTPS and sends HSTS
-  (`FORCE_HTTPS=false` only if TLS is fully handled in front of it). Use TLS to MongoDB
+- **Encryption in transit**: Vercel and Render serve HTTPS only (HTTP is redirected), and with
+  `ENVIRONMENT=production` the API sends HSTS and the session cookie is `Secure`. Use TLS to MongoDB
   (`mongodb+srv://` or `?tls=true`). Calls to Anthropic and Resend use HTTPS.
 
 ## Additional materials (PRD 4.15)

@@ -44,9 +44,9 @@ class UserOut(BaseModel):
     created_at: datetime
 
 
-class AuthResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
+class SessionOut(BaseModel):
+    """Sign-in and sign-up: the token goes in an httpOnly cookie, never to page scripts."""
+
     user: UserOut
 
 

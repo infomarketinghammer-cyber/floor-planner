@@ -6,9 +6,13 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     port: 5173,
-    // All API traffic goes through the Express gateway, same as production.
+    // The app calls /api/*; FastAPI serves it under /api/v1/*, same as the Vercel rewrite in
+    // production (vercel.json). Same origin, so the session cookie just works.
     proxy: {
-      '/api': 'http://localhost:4000',
+      '/api': {
+        target: 'http://localhost:8000',
+        rewrite: (path) => path.replace(/^\/api/, '/api/v1'),
+      },
     },
   },
 })
