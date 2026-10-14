@@ -1,0 +1,47 @@
+# Render blueprint: the gateway and API as one Docker web service (see Dockerfile).
+# New > Blueprint in Render, pick this repository, then fill in the values marked sync: false.
+# The frontend is deployed to Vercel separately (frontend/vercel.json).
+services:
+  - type: web
+    name: floor-planner-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    # Starter or above: the free plan sleeps after 15 minutes idle (the first visit then takes
+    # about a minute) and has little memory for reading large plans.
+    plan: starter
+    healthCheckPath: /ready
+    envVars:
+      # MongoDB Atlas (or any MongoDB with TLS): mongodb+srv://user:password@cluster/...
+      - key: MONGODB_URI
+        sync: false
+      - key: MONGODB_DB
+        value: floor_planner
+      # Signs sessions. Generated once by Render; changing it signs everyone out.
+      - key: JWT_SECRET
+        generateValue: true
+      # The first admin account, created on first start if there is no admin yet.
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      # 32 random bytes, base64 (see backend/.env.example). Back it up: plans can't be read
+      # without it.
+      - key: FILE_ENCRYPTION_KEY
+        sync: false
+      # The Vercel address people open, e.g. https://floor-planner.vercel.app (links in emails).
+      - key: APP_URL
+        sync: false
+      # Optional features: leave unset to turn them off.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: DATA_LOCATION
+        sync: false
+      # Proxies in front of the gateway (Vercel, then Render). Check the logs after deploying
+      # and adjust; see README "Deployment".
+      - key: TRUST_PROXY
+        value: "2"

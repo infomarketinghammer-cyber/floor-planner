@@ -250,6 +250,45 @@ Run FastAPI separately (e.g. `uvicorn app.main:app --host 127.0.0.1 --port 8000`
 Note: dev auto-reload for the backend uses `watchfiles` instead of `uvicorn --reload`, because
 uvicorn's reloader hangs on Windows when its output is piped.
 
+## Deployment: Vercel (frontend) + Render (server)
+
+```
+browser ──> Vercel: React app, and /api/* rewritten to ──> Render: gateway ──> FastAPI (localhost)
+                                                                              └─> MongoDB Atlas
+```
+
+The browser only ever talks to the Vercel address, so the session cookie stays first-party
+(`SameSite=Strict`, `Secure`) and no CORS is needed. On Render, the gateway and FastAPI run in
+one Docker container (`Dockerfile`, `deploy/start.sh`); FastAPI listens on localhost only.
+
+1. **MongoDB**: create a MongoDB Atlas cluster (TLS is on by default), a database user, and
+   allow Render's outbound IPs (or 0.0.0.0/0 with a strong password). Plan files are stored in
+   MongoDB (GridFS), so the server needs no persistent disk. Backups: enable them in Atlas.
+2. **Render**: New → Blueprint → this repository (`render.yaml`). Fill in `MONGODB_URI`,
+   `ADMIN_EMAIL`, `ADMIN_PASSWORD` (a strong one), `FILE_ENCRYPTION_KEY` (generate as in
+   `backend/.env.example`, and keep a copy: plans can't be read without it), `APP_URL`, and the
+   optional keys. `JWT_SECRET` is generated. Use the Starter plan or above: the free plan sleeps
+   after 15 idle minutes and has little memory for reading plans.
+3. **Vercel**: import the repository with **Root Directory `frontend`**. Edit
+   `frontend/vercel.json` so the `/api/:path*` destination is your Render URL (the default
+   assumes the service is named `floor-planner-api`).
+4. **Client IP for rate limits**: sign in once, then look at the Render logs: each line starts
+   with the IP the gateway sees. If it's your own IP, `TRUST_PROXY` is right. If it's a Vercel
+   or Render address, raise it by one; if you can make it show a made-up IP by sending your own
+   `X-Forwarded-For` header, lower it.
+5. **Check**: sign up, upload a plan (try one near the 25 MB limit: Vercel's proxy must accept
+   it), export a PDF (check the ₹ sign), and open a share link.
+
+Limits to know:
+- Vercel's proxy waits at most 120 seconds for a response. Reading a long scanned PDF with the
+  vision model can take longer: the reading still finishes and saves the rooms, but the browser
+  shows an error, and the rooms appear after a refresh. Keep `VISION_EFFORT` at `medium` or
+  lower in production if this happens often.
+- Guest rate limits and the email-per-hour limit are kept in memory: run one instance (the
+  Render default), or they apply per instance.
+- DWG files need the ODA File Converter, which isn't in the container; users are asked for DXF
+  or PDF instead.
+
 ## Exports (PRD 4.11)
 
 `GET /api/projects/:id/exports/report.pdf`, `estimate.xlsx` and `shopping-list.pdf`. The workbook

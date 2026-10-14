@@ -1,5 +1,5 @@
 import express, { Router } from 'express';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import jwt from 'jsonwebtoken';
 import { config } from '../config.js';
 import { authenticate } from '../middleware/auth.js';
@@ -46,11 +46,14 @@ function issueSession(path) {
 
 // Only credential attempts are rate-limited. The /me session check runs on every page load and
 // must never be throttled, or signed-in users would appear logged out.
+// Keyed by IP and email: behind a proxy that hides visitors' IPs, a per-IP limit alone would make
+// everyone share one allowance, and this still stops guessing one account's password.
 const credentialLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 30,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
+  keyGenerator: (req) => `${ipKeyGenerator(req.ip ?? '')}|${String(req.body?.email ?? '').toLowerCase()}`,
   message: { detail: 'Too many sign-in attempts. Try again in a few minutes.' },
 });
 

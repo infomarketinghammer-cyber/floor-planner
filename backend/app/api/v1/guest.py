@@ -133,8 +133,12 @@ def _allowed(method: str, path: str) -> bool:
 async def guest_call(body: GuestCallIn, request: Request) -> GuestCallOut:
     if not _allowed(body.method, body.path):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Sign in to use this.")
-    ip = (request.headers.get("x-forwarded-for") or "").split(",")[0].strip() or (
-        request.client.host if request.client else "unknown"
+    # The gateway sends the client IP it worked out from its trusted proxies; the first
+    # X-Forwarded-For entry (client-supplied, so spoofable) is only a fallback for local runs.
+    ip = (
+        request.headers.get("x-client-ip")
+        or (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
+        or (request.client.host if request.client else "unknown")
     )
     _check_rate(ip)
 

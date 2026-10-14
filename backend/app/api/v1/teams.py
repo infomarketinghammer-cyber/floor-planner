@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Response, status
 from pydantic import BaseModel, EmailStr, Field
 
 from app.api.deps import CurrentUser, parse_object_id
+from app.core.config import get_settings
 from app.db.mongo import get_db
 from app.services.collab import log_activity
 from app.services.email import email_enabled, send_email
@@ -85,9 +86,11 @@ async def invite_email(to: str, inviter: dict, what: str) -> None:
     """Tell an invited person, if email is set up. Inviting works without it."""
     if not email_enabled():
         return
+    app_url = get_settings().app_url.rstrip("/")
     text = (
         f"{inviter.get('name') or 'A Floor Planner user'} invited you to {what} on Floor Planner.\n\n"
         "Sign in, or create an account with this email address, to see it."
+        + (f"\n\n{app_url}/login" if app_url else "")
     )
     try:
         await send_email(

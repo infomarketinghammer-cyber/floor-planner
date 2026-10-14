@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import cookieParser from 'cookie-parser';
@@ -11,20 +12,30 @@ import { authRouter } from './routes/auth.js';
 
 const app = express();
 app.disable('x-powered-by');
-app.set('trust proxy', 1);
+app.set('trust proxy', config.trustProxy);
 
 app.use(helmet());
 app.use(morgan(config.isProduction ? 'combined' : 'dev'));
 app.use(cookieParser());
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
+// Ready when FastAPI answers too: for the host's health check, so traffic only arrives once
+// both are up.
+app.get('/ready', async (req, res) => {
+  try {
+    const response = await fetch(`${config.fastapiUrl}/health`, { signal: AbortSignal.timeout(3000) });
+    return res.status(response.ok ? 200 : 503).json({ status: response.ok ? 'ok' : 'backend unavailable' });
+  } catch {
+    return res.status(503).json({ status: 'backend unavailable' });
+  }
+});
 
 // --- Encrypt in transit (PRD 4.14): in production, plain HTTP is redirected to HTTPS. Behind a
 // TLS-terminating proxy, `trust proxy` makes req.secure follow X-Forwarded-Proto. Helmet sends
 // HSTS so browsers stay on HTTPS.
 if (config.isProduction && config.forceHttps) {
   app.use((req, res, next) => {
-    if (req.secure || req.path === '/health') return next();
+    if (req.secure || req.path === '/health' || req.path === '/ready') return next();
     return res.redirect(308, `https://${req.headers.host}${req.originalUrl}`);
   });
 }
@@ -67,8 +78,10 @@ app.use(
   '/api/guest',
   createProxyMiddleware({
     target: config.fastapiUrl,
-    xfwd: true, // FastAPI rate-limits guests by client IP
     pathRewrite: (reqPath) => `/api/v1/guest${reqPath}`,
+    // FastAPI rate-limits guests by client IP: send the one worked out from the trusted
+    // proxies (replacing anything the client sent), not the spoofable X-Forwarded-For.
+    on: { proxyReq: (proxyReq, req) => proxyReq.setHeader('x-client-ip', req.ip ?? '') },
   }),
 );
 
@@ -88,9 +101,10 @@ app.use(
   }),
 );
 
-// --- Serve the built React app in production (Vite serves it in development)
-if (config.isProduction) {
-  const distDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../frontend/dist');
+// --- Serve the built React app when it's there (single-server deployments). In development Vite
+// serves it; when the frontend is hosted separately (e.g. Vercel) there is no build here.
+const distDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../frontend/dist');
+if (config.isProduction && existsSync(path.join(distDir, 'index.html'))) {
   app.use(express.static(distDir));
   app.get('/{*splat}', (req, res) => res.sendFile(path.join(distDir, 'index.html')));
 }

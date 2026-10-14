@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     # Shown to users on the privacy page, e.g. "AWS Mumbai (ap-south-1)". Empty: not stated.
     data_location: str = ""
 
+    # The address people open the app at, e.g. "https://floorplanner.vercel.app". Used for links
+    # in emails. Empty: emails say where to go without a link.
+    app_url: str = ""
+
 
 @lru_cache
 def get_settings() -> Settings:

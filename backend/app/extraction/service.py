@@ -22,6 +22,9 @@ from app.schemas.project import ExtractedValues, Room, RoomOrigin, RoomSource
 from app.uploads.inspect import FileKind
 
 _vision_slots = asyncio.Semaphore(3)  # concurrent vision calls across the server
+# Pages worked on at once per file. Each scanned page is rendered to an image before its vision
+# call, so without this a 50-page scan would hold 50 page images in memory at the same time.
+_page_slots = 4
 
 
 @dataclass
@@ -64,9 +67,13 @@ async def extract_pages(
     `plan_unit` (the user-confirmed plan unit, PRD 4.4) is used for sizes written without units."""
     included = [p for p in pages if p.get("included", True)]
     if kind == FileKind.PDF:
-        return list(
-            await asyncio.gather(*(_extract_pdf_page(data, p, plan_unit) for p in included))
-        )
+        slots = asyncio.Semaphore(_page_slots)
+
+        async def run(page: dict) -> PageResult:
+            async with slots:
+                return await _extract_pdf_page(data, page, plan_unit)
+
+        return list(await asyncio.gather(*(run(p) for p in included)))
 
     if kind in (FileKind.DXF, FileKind.DWG):
         if not included:
