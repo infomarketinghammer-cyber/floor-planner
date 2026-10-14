@@ -5,6 +5,7 @@ from app.api.v1 import (
     auth,
     collab,
     cost,
+    dashboards,
     exports,
     feedback,
     files,
@@ -36,6 +37,7 @@ api_router.include_router(feedback.router)
 api_router.include_router(scenarios.router)
 api_router.include_router(quotes.router)
 api_router.include_router(collab.router)
+api_router.include_router(dashboards.router)
 api_router.include_router(teams.router)
 api_router.include_router(tiles.router)
 api_router.include_router(users.router)

@@ -1,5 +1,9 @@
 import type {
   AdminStats,
+  BusinessDashboard,
+  PlatformDashboard,
+  ProjectDashboard,
+  TeamDashboard,
   Blueprint,
   CostSettings,
   OpeningKind,
@@ -538,7 +542,13 @@ export const api = {
         json('DELETE', { password }),
       ),
   },
+  dashboards: {
+    project: (projectId: string) => request<ProjectDashboard>(`/projects/${projectId}/dashboard`),
+    business: () => request<BusinessDashboard>('/dashboards/business'),
+    team: () => request<TeamDashboard>('/dashboards/team'),
+  },
   admin: {
+    platform: () => request<PlatformDashboard>('/admin/platform'),
     stats: () => request<AdminStats>('/admin/stats'),
     accuracy: () => request<AdminAccuracy>('/admin/accuracy'),
     evaluationSet: () => request<EvalEntry[]>('/admin/evaluation'),

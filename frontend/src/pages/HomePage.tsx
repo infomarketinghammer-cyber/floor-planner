@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { api } from '../api/client.ts'
-import type { Project } from '../api/types.ts'
+import type { PendingItem, Project } from '../api/types.ts'
+import { PendingList } from './InsightsPage.tsx'
 import { useAuth } from '../auth/AuthContext.tsx'
 import { MoveLocalProjects } from '../components/MoveLocalProjects.tsx'
 import { NewProjectDialog, StatusBadge } from '../components/projects.tsx'
@@ -50,6 +51,7 @@ export function HomePage() {
   const [sortKey, setSortKey] = useState<SortKey>('updated')
   const [areaUnit] = useAreaUnit()
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [pending, setPending] = useState<PendingItem[]>([])
 
   useEffect(() => {
     api.projects
@@ -57,6 +59,12 @@ export function HomePage() {
       .then(setProjects)
       .catch((err: Error) => setError(err.message))
   }, [])
+
+  // What's waiting for this user across projects: approvals, comments, rooms to review (PRD 4.21).
+  useEffect(() => {
+    if (isGuest) return
+    api.dashboards.team().then((t) => setPending(t.pending), () => {})
+  }, [isGuest])
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -79,6 +87,21 @@ export function HomePage() {
     setDialogOpen(false)
     navigate(`/projects/${created.id}`)
     return created
+  }
+
+  async function handleReport(project: Project) {
+    setBusyId(project.id)
+    setError('')
+    try {
+      saveFile(await api.exports.file(project.id, 'report.pdf', areaUnit))
+      setProjects((prev) =>
+        prev?.map((p) => (p.id === project.id ? { ...p, status: 'exported', last_exported_at: new Date().toISOString() } : p)) ?? null,
+      )
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusyId(null)
+    }
   }
 
   async function handleDuplicate(project: Project) {
@@ -165,6 +188,20 @@ export function HomePage() {
             </StatCard>
           </section>
 
+          {pending.length > 0 && (
+            <section className="rounded-xl border border-slate-200 bg-white p-5">
+              <div className="flex items-baseline justify-between gap-3">
+                <h2 className="font-semibold">Waiting for you</h2>
+                {pending.length > 5 && (
+                  <Link to="/insights" className="text-sm font-medium text-brand-700 hover:underline">
+                    All {pending.length} →
+                  </Link>
+                )}
+              </div>
+              <PendingList items={pending} limit={5} />
+            </section>
+          )}
+
           {attention.length > 0 && (
             <section className="rounded-xl border border-amber-200 bg-amber-50 p-5">
               <h2 className="font-semibold text-amber-900">Needs attention</h2>
@@ -231,6 +268,7 @@ export function HomePage() {
                   project={p}
                   areaUnit={areaUnit}
                   busy={busyId === p.id}
+                  onReport={p.room_count && !p.needs_attention ? () => handleReport(p) : undefined}
                   onDuplicate={() => handleDuplicate(p)}
                   onDelete={() => handleDelete(p)}
                 />
@@ -284,6 +322,7 @@ export function HomePage() {
                         <ProjectActions
                           projectId={p.id}
                           busy={busyId === p.id}
+                          onReport={p.room_count && !p.needs_attention ? () => handleReport(p) : undefined}
                           onDuplicate={() => handleDuplicate(p)}
                           onDelete={() => handleDelete(p)}
                           className="justify-end"
@@ -301,6 +340,15 @@ export function HomePage() {
       <NewProjectDialog open={dialogOpen} onClose={() => setDialogOpen(false)} onCreate={handleCreate} />
     </div>
   )
+}
+
+function saveFile({ blob, filename }: { blob: Blob; filename: string }) {
+  const url = URL.createObjectURL(blob)
+  const a = Object.assign(document.createElement('a'), { href: url, download: filename })
+  document.body.append(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
 function StatCard({
@@ -350,12 +398,14 @@ function ActivityLine({ label, project, at }: { label: string; project?: Project
 function ProjectActions({
   projectId,
   busy,
+  onReport,
   onDuplicate,
   onDelete,
   className = '',
 }: {
   projectId: string
   busy: boolean
+  onReport?: () => void
   onDuplicate: () => void
   onDelete: () => void
   className?: string
@@ -365,6 +415,14 @@ function ProjectActions({
       <Link to={`/projects/${projectId}`} className="font-medium text-brand-600 hover:underline">
         Open
       </Link>
+      <Link to={`/projects/${projectId}/dashboard`} className="text-slate-600 hover:underline">
+        Dashboard
+      </Link>
+      {onReport && (
+        <button onClick={onReport} disabled={busy} className="text-slate-600 hover:underline disabled:opacity-50" title="Download the PDF report">
+          Report
+        </button>
+      )}
       <button onClick={onDuplicate} disabled={busy} className="text-slate-600 hover:underline disabled:opacity-50">
         Duplicate
       </button>
@@ -379,12 +437,14 @@ function ProjectCard({
   project: p,
   areaUnit,
   busy,
+  onReport,
   onDuplicate,
   onDelete,
 }: {
   project: Project
   areaUnit: AreaUnit
   busy: boolean
+  onReport?: () => void
   onDuplicate: () => void
   onDelete: () => void
 }) {
@@ -402,7 +462,7 @@ function ProjectCard({
       </div>
       {p.needs_attention && <p className="mt-1 text-xs text-amber-700">{attentionReasons(p).join(' · ')}</p>}
       <p className="mt-2 text-sm text-slate-500">{details.join(' · ')}</p>
-      <ProjectActions projectId={p.id} busy={busy} onDuplicate={onDuplicate} onDelete={onDelete} className="mt-3" />
+      <ProjectActions projectId={p.id} busy={busy} onReport={onReport} onDuplicate={onDuplicate} onDelete={onDelete} className="mt-3" />
     </li>
   )
 }

@@ -30,6 +30,11 @@ export function AppLayout() {
               Tiles
             </NavLink>
             {!isGuest && (
+              <NavLink to="/insights" className={navClass}>
+                Insights
+              </NavLink>
+            )}
+            {!isGuest && (
               <NavLink to="/team" className={navClass}>
                 Team
               </NavLink>

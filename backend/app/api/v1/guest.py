@@ -33,7 +33,7 @@ OID = r"[0-9a-f]{24}"
 ALLOWED: list[tuple[str, str]] = [
     ("POST", r"/projects"),
     ("GET|PATCH", rf"/projects/{OID}"),
-    ("GET", rf"/projects/{OID}/estimate"),
+    ("GET", rf"/projects/{OID}/(estimate|dashboard)"),
     ("GET|POST|PUT|PATCH|DELETE", rf"/projects/{OID}/rooms(/.*)?"),
     ("GET|POST|PUT|PATCH|DELETE", rf"/projects/{OID}/files(/.*)?"),
     ("PUT", rf"/projects/{OID}/materials/default"),

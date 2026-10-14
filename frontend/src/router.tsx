@@ -4,6 +4,8 @@ import { AppLayout } from './components/AppLayout.tsx'
 import { AccountPage } from './pages/AccountPage.tsx'
 import { AdminPage } from './pages/admin/AdminPage.tsx'
 import { HomePage } from './pages/HomePage.tsx'
+import { InsightsPage } from './pages/InsightsPage.tsx'
+import { ProjectDashboardPage } from './pages/ProjectDashboardPage.tsx'
 import { LandingPage } from './pages/LandingPage.tsx'
 import { LoginPage } from './pages/LoginPage.tsx'
 import { PrivacyPage } from './pages/PrivacyPage.tsx'
@@ -34,6 +36,8 @@ export const router = createBrowserRouter([
             element: <RequireAuth roles={['contractor', 'admin']} />,
             children: [
               { path: 'projects/:projectId', element: <ProjectPage /> },
+              { path: 'projects/:projectId/dashboard', element: <ProjectDashboardPage /> },
+              { path: 'insights', element: <InsightsPage /> },
               { path: 'tiles', element: <TilesPage /> },
               { path: 'team', element: <TeamPage /> },
             ],

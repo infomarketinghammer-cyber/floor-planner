@@ -20,6 +20,7 @@ P = "/projects/0123456789abcdef01234567"
         ("GET", f"{P}/exports/report.pdf?area_unit=sqm"),
         ("PUT", f"{P}/cost/settings"),
         ("GET", f"{P}/scenarios"),
+        ("GET", f"{P}/dashboard"),
         ("GET", "/tiles?scope=mine"),
     ],
 )

@@ -944,3 +944,162 @@ export interface SharedProject {
     total: string
   } | null
 }
+
+// --- Dashboards (PRD 4.20, 4.21) -------------------------------------------------------------------
+export interface Insight {
+  key: string
+  severity: 'warning' | 'info'
+  title: string
+  text: string
+  room_id: string | null
+}
+
+export interface DashRoom {
+  room_id: string
+  name: string
+  floor: string | null
+  room_type: string
+  tile_id: string
+  tile: string
+  area_mm2: string
+  boxes: number
+  linear_mm: string | null
+  extra_pct: string
+  cut_waste_pct: string
+  rounding_tiles: number
+  cost: string | null
+  budget_share_pct: string | null
+}
+
+export interface DashTile {
+  tile_id: string
+  tile: string
+  kind: 'tile' | 'plank' | 'roll'
+  rooms: number
+  boxes: number
+  boxes_if_pooled: number
+  linear_mm: string | null
+  area_mm2: string
+  cost: string | null
+}
+
+export interface ProjectDashboard {
+  ready: boolean
+  blockers: string[]
+  costs_visible: boolean
+  money: { currency: string; locale: string } | null
+  rooms_count: number
+  area_mm2: string
+  boxes: number | null
+  extra_pct: string | null
+  cut_waste_pct: string | null
+  cost_total: string | null
+  budget: string | null
+  budget_status: 'under' | 'near' | 'over' | null
+  rooms: DashRoom[]
+  tiles: DashTile[]
+  cost_parts: { label: string; amount: string }[]
+  insights: Insight[]
+  review: {
+    rooms: number
+    confirmed: number
+    to_review: number
+    skipped: number
+    from_plans: number
+    with_issues: number
+    unit_pending: boolean
+  }
+  blueprints: {
+    id: string
+    filename: string
+    kind: string
+    status: 'done' | 'no_rooms' | 'partial' | 'unavailable' | 'not_read'
+    message: string
+    rooms_found: number
+    rooms_flagged: number
+  }[]
+  history: {
+    at: string
+    label: string
+    user_name: string | null
+    ready: boolean
+    boxes: number | null
+    extra_pct: string | null
+    cost: string | null
+    budget: string | null
+  }[]
+  timeline: { at: string; label: string; detail: string | null; user_name: string | null }[]
+}
+
+export interface BusinessDashboard {
+  money: { currency: string; locale: string } | null
+  quotes: number
+  by_status: Partial<Record<QuoteStatus, number>>
+  quoted_total: string
+  approved_total: string
+  margin_total: string
+  margin_pct: string | null
+  conversion_pct: string | null
+  other_currency_quotes: number
+  recent_quotes: {
+    quote_id: string
+    project_id: string
+    project_name: string
+    client: string
+    number: string
+    version: number
+    status: QuoteStatus
+    total: string
+    margin_amount: string
+    currency: string
+    locale: string
+    created_at: string
+    sent_at: string | null
+  }[]
+  projects: number
+  tiles: { tile: string; projects: number; rooms: number; boxes: number; typical_extra_pct: string }[]
+  months: { month: string; projects: number; area_mm2: string; quoted: string }[]
+}
+
+export interface PendingItem {
+  kind: 'approve' | 'awaiting_client' | 'comments' | 'changes_requested' | 'review_rooms'
+  project_id: string
+  project_name: string
+  text: string
+  at: string | null
+}
+
+export interface TeamDashboard {
+  roles: Partial<Record<ProjectRole, number>>
+  pending: PendingItem[]
+  activity: { project_id: string; project_name: string; at: string; label: string; user_name: string | null }[]
+  teams: {
+    id: string
+    name: string
+    my_role: string
+    projects: number
+    members: { user_name: string; role: string; changes_30d: number; last_at: string | null }[]
+  }[]
+}
+
+export interface PlatformDashboard {
+  users: number
+  active_users_30d: number
+  projects: number
+  uploads: number
+  exports: number
+  by_source: { source: string; read: number; reviewed: number; correct: number; accuracy_pct: string | null }[]
+  fields: { field: 'name' | 'length' | 'width' | 'unit'; corrected: number; checked: number; rate_pct: string | null }[]
+  patterns: { label: string; count: number; wrong_pct: string | null }[]
+  read_failures: Record<string, number>
+  weeks: {
+    week: string
+    right: number
+    wrong: number
+    signups: number
+    projects: number
+    uploads: number
+    exports: number
+    quotes: number
+  }[]
+}

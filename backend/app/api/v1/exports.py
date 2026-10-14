@@ -27,6 +27,7 @@ from app.schemas.project import ProjectStatus
 from app.services.access import can_see_costs
 from app.services.email import EmailError, EmailNotConfigured, email_enabled, send_email
 from app.services.projects import get_project_or_404
+from app.services.usage import log_usage
 
 router = APIRouter(prefix="/projects/{project_id}/exports", tags=["exports"])
 
@@ -68,6 +69,7 @@ async def _data(user: dict, project_id: str, area_unit: AreaUnit | None) -> tupl
 
 
 async def _mark_exported(project: dict) -> None:
+    await log_usage("export")
     await get_db().projects.update_one(
         {"_id": project["_id"]},
         {"$set": {"status": ProjectStatus.EXPORTED.value, "last_exported_at": datetime.now(UTC)}},

@@ -36,6 +36,7 @@ from app.services.materials import project_default
 from app.services.projects import get_project_or_404
 from app.services.quotes import NotQuotable, quote_lines, totals
 from app.services.review import review_state
+from app.services.usage import log_usage
 
 router = APIRouter(tags=["quotes"])
 
@@ -214,6 +215,7 @@ async def create_quote(project_id: str, body: QuoteIn, user: CurrentUser) -> Quo
         **built,
     }
     result = await get_db().quotes.insert_one(doc)
+    await log_usage("quote")
     doc["_id"] = result.inserted_id
     return _quote(doc)
 

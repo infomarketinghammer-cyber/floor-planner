@@ -22,6 +22,12 @@ export function projectArea(project: Project, unit: AreaUnit): number {
   return unit === 'sqm' ? project.total_area_sqm : project.total_area_sqft
 }
 
+/** Exact mm² from the server to the display unit. */
+export function areaOf(mm2: string | number, unit: AreaUnit): number {
+  const n = Number(mm2)
+  return unit === 'sqm' ? n / 1_000_000 : n / 92_903.04
+}
+
 export function formatArea(value: number, unit: AreaUnit): string {
   return `${numberFormat.format(value)} ${areaLabels[unit]}`
 }

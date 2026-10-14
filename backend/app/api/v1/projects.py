@@ -15,6 +15,7 @@ from app.services.materials import project_default
 from app.services.project_summary import project_out
 from app.services.projects import get_project_or_404
 from app.services.review import review_state
+from app.services.usage import log_usage
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -41,6 +42,7 @@ async def create_project(body: ProjectCreate, user: CurrentUser) -> ProjectOut:
         "last_exported_at": None,
     }
     result = await get_db().projects.insert_one(doc)
+    await log_usage("project")
     doc["_id"] = result.inserted_id
     return project_out(doc)
 
@@ -92,6 +94,7 @@ async def duplicate_project(project_id: str, user: CurrentUser) -> ProjectOut:
     if copy["status"] == ProjectStatus.EXPORTED:
         copy["status"] = ProjectStatus.CALCULATED.value
     result = await get_db().projects.insert_one(copy)
+    await log_usage("project")
     copy["_id"] = result.inserted_id
     return project_out(copy)
 

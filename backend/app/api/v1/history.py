@@ -25,6 +25,7 @@ from app.schemas.project import ProjectOut, Room, RoomsOut
 from app.services.history import SNAPSHOT_FIELDS
 from app.services.project_summary import project_out
 from app.services.projects import get_project_or_404, save_rooms
+from app.services.usage import log_usage
 
 router = APIRouter(tags=["history"])
 
@@ -206,6 +207,7 @@ async def import_project(file: UploadFile, user: CurrentUser) -> ProjectOut:
         "last_exported_at": None,
     }
     await get_db().projects.insert_one(doc)
+    await log_usage("project")
     if blueprints:
         await get_db().blueprints.insert_many(blueprints)
     # Rooms go through the normal save, so status, history and checks are all set as usual.

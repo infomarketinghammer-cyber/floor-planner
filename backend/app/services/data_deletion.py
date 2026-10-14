@@ -48,6 +48,7 @@ async def delete_account(user_id: ObjectId) -> dict[str, int]:
     ).deleted_count
     await db.feedback.delete_many({"user_id": user_id})
     await db.email_log.delete_many({"user_id": user_id})
+    await db.usage_events.delete_many({"user_id": user_id})
     user = await db.users.find_one({"_id": user_id}, {"company_logo_id": 1})
     if user and user.get("company_logo_id"):
         await storage.delete(user["company_logo_id"])

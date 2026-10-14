@@ -362,3 +362,32 @@ Deleting a project deletes its outcomes and feedback.
 - **Order list by vendor**: tiles have a vendor (and code); the order list PDF groups the
   shopping list by vendor.
 - Not built: vendor catalogues with live pricing, which need supplier systems to connect to.
+
+## Dashboards (PRD 4.20, 4.21)
+
+Read-only views built from what the app already stores, so they always show the same numbers
+as the rest of the app. Each shows only what the viewer may see: costs only for owners and
+contractors, projects only if they can open them.
+
+- **Home**: projects, attention, total area, recent activity; "Waiting for you" (approvals,
+  open comments, rooms to review); per-project quick actions: Dashboard, PDF report.
+- **Project dashboard** (`/projects/:id/dashboard`, "Dashboard" on the project page):
+  headline figures; insights and alerts (over 20% extra with the reason, small rooms where the
+  last part-box dominates, boxes saved by sharing leftovers, missing or unusual sizes,
+  duplicates, rooms without a price, budget status and each room's share); extra by room, boxes
+  and cost by tile type, where the money goes; room breakdown; estimate against budget over
+  time (from the project history); compared options; plan reading status; timeline. Works for
+  guests too (without history).
+- **Insights** (`/insights`): **Business** for those who run projects: quoted, won, margin on
+  won work, conversion (approved of decided); new projects, area and quoted value by month;
+  tiles used most and their typical extra; client quotes and their status. **Team and
+  approvals** for everyone: projects by your role, what's waiting (approve, waiting for the
+  client, changes requested, open comments, rooms to review), each team's members and their
+  changes in the last 30 days, and who changed what.
+- **Platform and accuracy** (admin page): users, active users, uploads, exports; reading
+  accuracy by kind of file (text PDF, scanned PDF, photo, CAD); how often name, length, width
+  and unit are corrected; flags and confidence levels and how often those rooms were wrong;
+  plan files by read status; feedback and usage per week for 12 weeks.
+- Usage counts come from small `usage_events` records (upload, export, new project, quote),
+  so deleting files doesn't erase history. They hold no content, aren't kept for guests, and
+  are deleted with the account.

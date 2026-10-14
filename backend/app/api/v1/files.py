@@ -21,6 +21,7 @@ from app.schemas.blueprint import BlueprintOut, ExtractionOut, PageUpdate, bluep
 from app.schemas.project import Room, RoomOrigin
 from app.services.accuracy import forget_rooms
 from app.services.projects import get_project_or_404, save_rooms, touch
+from app.services.usage import log_usage
 from app.uploads.inspect import FileKind, UploadError, inspect_upload
 
 router = APIRouter(prefix="/projects/{project_id}/files", tags=["files"])
@@ -129,6 +130,7 @@ async def upload_file(project_id: str, file: UploadFile, user: CurrentUser) -> B
         "created_at": datetime.now(UTC),
     }
     doc["_id"] = (await get_db().blueprints.insert_one(doc)).inserted_id
+    await log_usage("upload")
     await touch(project["_id"])
     return blueprint_out(doc)
 
