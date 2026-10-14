@@ -17,8 +17,9 @@ services:
       # MongoDB Atlas (or any MongoDB with TLS): mongodb+srv://user:password@cluster/...
       - key: MONGODB_URI
         sync: false
+      # Same name as MONGODB_DB in backend/.env, so production and local use one database.
       - key: MONGODB_DB
-        value: floor_planner
+        value: Floor-planner
       # Signs sessions. Generated once by Render; changing it signs everyone out.
       - key: JWT_SECRET
         generateValue: true
