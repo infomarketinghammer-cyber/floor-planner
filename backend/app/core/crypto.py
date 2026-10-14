@@ -28,10 +28,17 @@ class EncryptionError(Exception):
     pass
 
 
+def _normalize(key_b64: str) -> str:
+    """Forgive the usual copy-paste slips in a host's settings form: surrounding quotes or
+    spaces, and a dropped "=" at the end."""
+    key = key_b64.strip().strip("\"'").strip()
+    return key + "=" * (-len(key) % 4)
+
+
 @lru_cache
 def _cipher(key_b64: str) -> AESGCM:
     try:
-        key = base64.b64decode(key_b64, validate=True)
+        key = base64.b64decode(_normalize(key_b64), validate=True)
     except (binascii.Error, ValueError):
         raise EncryptionError("FILE_ENCRYPTION_KEY isn't valid base64.") from None
     if len(key) != 32:

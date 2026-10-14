@@ -63,3 +63,17 @@ def test_bad_keys_fail_at_startup(key, bad):
     key(bad)
     with pytest.raises(crypto.EncryptionError):
         crypto.check_key()
+
+
+def test_key_survives_copy_paste_slips():
+    import base64
+    import os
+
+    from app.core.crypto import _cipher
+
+    key = base64.b64encode(os.urandom(32)).decode()  # 44 characters, ends with "="
+    data = b"plan"
+    nonce = os.urandom(12)
+    sealed = _cipher(key).encrypt(nonce, data, None)
+    for pasted in (f'"{key}"', f" {key} ", key.rstrip("="), f"'{key}'\n"):
+        assert _cipher(pasted).decrypt(nonce, sealed, None) == data
