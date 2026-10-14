@@ -260,10 +260,10 @@ The browser only ever talks to the Vercel address, so the session cookie stays f
 3. **Vercel**: import the repository with **Root Directory `frontend`**. Edit
    `frontend/vercel.json` so the `/api/:path*` destination is your Render URL (the default
    assumes the service is named `floor-planner-api`).
-4. **Client IP for rate limits**: open `https://<your-vercel-app>/api/public/ip`. If it shows
-   your own IP, `TRUST_PROXY` is right. If it shows a Vercel or Render address, raise it by one.
-   If sending your own header (`curl -H "X-Forwarded-For: 1.2.3.4" .../api/public/ip`) makes it
-   show `1.2.3.4`, lower it.
+4. **Client IP for rate limits**: open `https://<your-vercel-app>/api/public/ip`. `chain` lists
+   the addresses the request passed through, starting with yours; `TRUST_PROXY` is how many come
+   after yours. Through Vercel to Render that is 4 (Vercel, Cloudflare, Render's load balancer,
+   Render's proxy), so `ip` then shows your own address.
 5. **Check**: sign up, upload a plan (try one near the 25 MB limit: Vercel's proxy must accept
    it), export a PDF (check the ₹ sign), and open a share link.
 
